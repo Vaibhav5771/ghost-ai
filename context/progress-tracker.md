@@ -9,11 +9,12 @@ change.
 
 ## Current Goal
 
-- Feature 01 done. Ready for next feature spec.
+- Feature 02 done. Ready for next feature spec.
 
 ## Completed
 
 - **01-design-system**: shadcn/ui installed via CLI, dark theme configured in globals.css, lib/utils.ts cn() helper created, all 7 UI primitives added (Button, Card, Dialog, Input, Tabs, Textarea, ScrollArea), lucide-react installed, TypeScript compiles clean.
+- **02-editor**: EditorNavbar (fixed top navbar, sidebar toggle with PanelLeftOpen/PanelLeftClose) and ProjectSidebar (fixed floating overlay, slide-in from left, Tabs with My Projects/Shared, New project button) created in components/editor/. Dialog pattern satisfied by existing shadcn Dialog primitives. TypeScript compiles clean.
 
 ## In Progress
 
@@ -35,6 +36,8 @@ change.
 - cn() helper in `lib/utils.ts` uses clsx + tailwind-merge
 - Animation utilities (animate-in, fade-in-0, zoom-in-95, slide-in-from-*) defined via `@utility` in globals.css for Tailwind v4 compatibility
 - `components.json` present at project root for shadcn CLI configuration
+- Editor chrome components live in `components/editor/` — hand-authored, not generated
+- Project sidebar is `fixed` positioned (floats above canvas, does not push content); slide-in via CSS transform transition
 
 ## Session Notes
 
