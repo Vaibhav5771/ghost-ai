@@ -9,12 +9,15 @@ change.
 
 ## Current Goal
 
-- Feature 02 done. Ready for next feature spec.
+- Feature 03 done. Ready for next feature spec.
 
 ## Completed
 
 - **01-design-system**: shadcn/ui installed via CLI, dark theme configured in globals.css, lib/utils.ts cn() helper created, all 7 UI primitives added (Button, Card, Dialog, Input, Tabs, Textarea, ScrollArea), lucide-react installed, TypeScript compiles clean.
 - **02-editor**: EditorNavbar (fixed top navbar, sidebar toggle with PanelLeftOpen/PanelLeftClose) and ProjectSidebar (fixed floating overlay, slide-in from left, Tabs with My Projects/Shared, New project button) created in components/editor/. Dialog pattern satisfied by existing shadcn Dialog primitives. TypeScript compiles clean.
+- **03-auth**: Clerk wired into Next.js 16. `proxy.ts` at project root with protected-first strategy (public: /sign-in, /sign-up). `ClerkProvider` wraps root layout with `dark` theme from `@clerk/ui/themes` and CSS variable overrides. `/` redirects authenticated users to `/editor`, unauthenticated to `/sign-in`. Two-panel auth layout (logo/tagline left, Clerk form right; form-only on mobile) at `app/(auth)/layout.tsx`. Sign-in/sign-up pages use `<SignIn />` and `<SignUp />` Clerk components. `UserButton` added to editor navbar right section. `app/editor/page.tsx` created. `@clerk/ui` installed.
+- **03-auth UI polish**: Auth layout refined to a professional 50/50 desktop split with a differentiated left brand panel, tighter feature rows, and centered Clerk card. Sign-in/sign-up Clerk components now use shadcn + dark theme styling, Geist font variables, icon social buttons, and token-based dark form controls.
+- **03-auth logout fix**: `UserButton` now redirects to `/sign-in` after sign-out, avoiding the root redirect handoff that could leave logout stuck on `Rendering...`.
 
 ## In Progress
 
@@ -38,9 +41,15 @@ change.
 - `components.json` present at project root for shadcn CLI configuration
 - Editor chrome components live in `components/editor/` — hand-authored, not generated
 - Project sidebar is `fixed` positioned (floats above canvas, does not push content); slide-in via CSS transform transition
+- Auth uses Clerk v7 (`@clerk/nextjs` ^7.3.0); proxy.ts (not middleware.ts) per Next.js 16 convention
+- ClerkProvider is inside `<body>` per Clerk v7 requirement; uses `dark` theme + CSS var overrides
+- Clerk appearance uses `shadcn` + `dark` themes from `@clerk/ui/themes`, with `@clerk/ui/themes/shadcn.css` imported in globals.css
+- Auth pages use route group `app/(auth)/` with shared two-panel layout; catch-all segments `[[...sign-in]]` and `[[...sign-up]]` for Clerk's multi-step flows
+- Protected-first middleware: all routes protected except NEXT_PUBLIC_CLERK_SIGN_IN_URL and NEXT_PUBLIC_CLERK_SIGN_UP_URL
 
 ## Session Notes
 
 - Next.js 16.2.4, React 19.2.4, Tailwind v4
 - package.json was missing — recreated from package-lock.json, then updated by shadcn CLI during add
 - shadcn CLI v4.6.0 used; Node 18 engine warnings are harmless
+- In Next.js 16, middleware.ts is renamed to proxy.ts (same API, new name)
