@@ -5,11 +5,11 @@ change.
 
 ## Current Phase
 
-- Complete
+- Feature 07 complete
 
 ## Current Goal
 
-- Feature 05 done. Ready for next feature spec.
+- Editor home project sidebar and dialogs are wired to the real project API from `context/feature-specs/07-wire-editor-home.md`.
 
 ## Completed
 
@@ -20,6 +20,8 @@ change.
 - **03-auth logout fix**: `UserButton` now redirects to `/sign-in` after sign-out, avoiding the root redirect handoff that could leave logout stuck on `Rendering...`.
 - **04-project-dialogs**: Editor home screen added with heading, description, and Plus-backed New Project CTA. Dedicated `useProjectDialogs` hook manages mock project data, dialog state, form state, slug previews, and loading state. Sidebar New project, rename, and delete actions are wired to Create/Rename/Delete dialogs. Owned project actions are hidden for shared projects. Mobile sidebar now has an outside-tap scrim.
 - **05-prisma**: Project and ProjectCollaborator models added in `prisma/models/project.prisma` with ProjectStatus enum, Clerk owner ID, optional description, status, future canvas JSON path, timestamps, cascade collaborator relation, uniqueness, and required indexes. Prisma Client singleton added in `lib/prisma.ts` with `accelerateUrl` for `prisma+postgres://`, direct `@prisma/adapter-pg` for standard Postgres URLs, and development global caching. Initial migration `20260507071804_add_project_models` created and applied. Prisma client generated.
+- **06-project-api**: Backend REST route handlers added at `app/api/projects/route.ts` and `app/api/projects/[projectId]/route.ts`. `GET /api/projects` lists the authenticated user's projects, `POST /api/projects` creates a project with the Clerk user ID as `ownerId` and defaults missing names to `Untitled Project`, `PATCH /api/projects/[projectId]` renames owner-owned projects, and `DELETE /api/projects/[projectId]` deletes owner-owned projects. `/api/projects(.*)` now passes through `proxy.ts` so handlers return the required JSON `401`; missing or non-owner mutation targets return `403`.
+- **07-wire-editor-home**: `/editor` is a server component again and fetches owned/shared project lists through `getEditorProjects()` before passing them to the client editor shell. Added `/editor/[projectId]` workspace route using the same server data path. Added `hooks/use-project-actions.ts` for create/rename/delete dialog state and project API mutations. Create generates a slug-based room/project ID with a short unique suffix, sends it to `POST /api/projects`, and navigates to `/editor/[projectId]`; rename refreshes server data after `PATCH`; delete redirects to `/editor` when deleting the active workspace and otherwise refreshes. Sidebar and dialogs now use real project data, room ID previews, rename prefill, and delete project names.
 
 ## In Progress
 
@@ -27,7 +29,7 @@ change.
 
 ## Next Up
 
-- Next feature spec to be determined
+- Build the next editor workspace feature spec when added.
 
 ## Open Questions
 
@@ -47,9 +49,10 @@ change.
 - ClerkProvider is inside `<body>` per Clerk v7 requirement; uses `dark` theme + CSS var overrides
 - Clerk appearance uses `shadcn` + `dark` themes from `@clerk/ui/themes`, with `@clerk/ui/themes/shadcn.css` imported in globals.css
 - Auth pages use route group `app/(auth)/` with shared two-panel layout; catch-all segments `[[...sign-in]]` and `[[...sign-up]]` for Clerk's multi-step flows
-- Protected-first middleware: all routes protected except NEXT_PUBLIC_CLERK_SIGN_IN_URL and NEXT_PUBLIC_CLERK_SIGN_UP_URL
+- Protected-first middleware: all routes protected except NEXT_PUBLIC_CLERK_SIGN_IN_URL, NEXT_PUBLIC_CLERK_SIGN_UP_URL, and `/api/projects(.*)`. Project API routes enforce Clerk auth inside route handlers so they can return the Feature 06-required JSON `401`.
 - Project metadata is stored in PostgreSQL through Prisma. Canvas JSON remains externalized for future blob storage via `Project.canvasJsonPath`.
 - Prisma Client singleton lives in `lib/prisma.ts`, uses `accelerateUrl` for `prisma+postgres://` URLs and `@prisma/adapter-pg` for direct Postgres URLs, and is cached on `globalThis` outside production.
+- Editor workspace URLs use `/editor/[projectId]`; Feature 07 aligns the project ID and Liveblocks room ID by allowing `POST /api/projects` to accept a sanitized slug-style client-generated ID while preserving Prisma's default ID strategy when no ID is supplied.
 
 ## Session Notes
 
@@ -59,3 +62,7 @@ change.
 - In Next.js 16, middleware.ts is renamed to proxy.ts (same API, new name)
 - Feature 04 verification: `npm run lint` passes and `npx tsc --noEmit` passes. `npm run build` is blocked in WSL because Node is 18.20.8; Next.js 16.2.4 requires Node >=20.9.0.
 - Feature 05 verification: `npx prisma format`, `npx prisma validate`, `npx prisma migrate dev --name add_project_models`, `npx prisma generate`, `npm run lint`, `npx tsc --noEmit`, and `npm run build` pass when run through WSL with Node 20.20.0 from `/home/vaibh/.nvm/versions/node/v20.20.0/bin`.
+- Feature 06 spec read: backend project API routes only; UI wiring is explicitly out of scope.
+- Feature 06 verification: `npm run lint`, `npx tsc --noEmit`, and `npm run build` pass when run through WSL with Node 20.20.0 from `/home/vaibh/.nvm/versions/node/v20.20.0/bin` and a compact Linux-only PATH.
+- Feature 07 spec read: editor home must fetch project lists server-side, use real project API mutations, show room ID previews, navigate create results to workspaces, refresh rename/delete, and redirect home when deleting the active workspace.
+- Feature 07 verification: `npm run lint`, `npx tsc --noEmit`, and `npm run build` pass when run through WSL with Node 20.20.0 from `/home/vaibh/.nvm/versions/node/v20.20.0/bin` and a Linux PATH that includes `/bin` for npm script spawning.

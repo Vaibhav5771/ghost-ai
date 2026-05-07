@@ -10,10 +10,10 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import type { MockProject } from "@/components/editor/use-project-dialogs"
+import type { EditorProject } from "@/lib/project-types"
 
 interface ProjectDialogsProps {
-  activeProject: MockProject | null
+  activeProject: EditorProject | null
   dialog: "create" | "rename" | "delete" | null
   isLoading: boolean
   onClose: () => void
@@ -65,7 +65,7 @@ export function ProjectDialogs({
                 placeholder="Architecture workspace"
               />
               <p className="text-sm text-muted-foreground">
-                Slug preview: <span className="text-foreground">{slugPreview}</span>
+                Room ID preview: <span className="text-foreground">{slugPreview}</span>
               </p>
             </div>
             <DialogFooter>

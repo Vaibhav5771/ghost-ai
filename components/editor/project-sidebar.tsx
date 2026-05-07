@@ -4,28 +4,34 @@ import { Pencil, Plus, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
-import type { MockProject } from "@/components/editor/use-project-dialogs"
+import type { EditorProject } from "@/lib/project-types"
 
 interface ProjectSidebarProps {
+  activeProjectId?: string
   isOpen: boolean
   onClose: () => void
   onCreateProject: () => void
-  onDeleteProject: (project: MockProject) => void
-  onRenameProject: (project: MockProject) => void
-  ownedProjects: MockProject[]
-  sharedProjects: MockProject[]
+  onDeleteProject: (project: EditorProject) => void
+  onOpenProject: (projectId: string) => void
+  onRenameProject: (project: EditorProject) => void
+  ownedProjects: EditorProject[]
+  sharedProjects: EditorProject[]
 }
 
 function ProjectList({
+  activeProjectId,
   emptyLabel,
   onDeleteProject,
+  onOpenProject,
   onRenameProject,
   projects,
 }: {
+  activeProjectId?: string
   emptyLabel: string
-  onDeleteProject: (project: MockProject) => void
-  onRenameProject: (project: MockProject) => void
-  projects: MockProject[]
+  onDeleteProject: (project: EditorProject) => void
+  onOpenProject: (projectId: string) => void
+  onRenameProject: (project: EditorProject) => void
+  projects: EditorProject[]
 }) {
   if (projects.length === 0) {
     return <p className="text-sm text-muted-foreground">{emptyLabel}</p>
@@ -36,17 +42,22 @@ function ProjectList({
       {projects.map((project) => (
         <div
           key={project.id}
-          className="group flex min-h-11 items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent"
+          className={cn(
+            "group flex min-h-11 items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent",
+            activeProjectId === project.id && "bg-accent"
+          )}
         >
           <button
             type="button"
             className="min-w-0 flex-1 text-left"
+            onClick={() => onOpenProject(project.id)}
+            aria-current={activeProjectId === project.id ? "page" : undefined}
           >
             <span className="block truncate text-sm font-medium text-foreground">
               {project.name}
             </span>
             <span className="block truncate text-xs text-muted-foreground">
-              {project.slug}
+              {project.roomId}
             </span>
           </button>
           {project.owned ? (
@@ -78,10 +89,12 @@ function ProjectList({
 }
 
 export function ProjectSidebar({
+  activeProjectId,
   isOpen,
   onClose,
   onCreateProject,
   onDeleteProject,
+  onOpenProject,
   onRenameProject,
   ownedProjects,
   sharedProjects,
@@ -118,16 +131,20 @@ export function ProjectSidebar({
             </TabsList>
             <TabsContent value="my-projects" className="flex-1 flex items-start justify-center mt-0 py-3">
               <ProjectList
+                activeProjectId={activeProjectId}
                 emptyLabel="No projects yet"
                 onDeleteProject={onDeleteProject}
+                onOpenProject={onOpenProject}
                 onRenameProject={onRenameProject}
                 projects={ownedProjects}
               />
             </TabsContent>
             <TabsContent value="shared" className="flex-1 flex items-start justify-center mt-0 py-3">
               <ProjectList
+                activeProjectId={activeProjectId}
                 emptyLabel="No shared projects"
                 onDeleteProject={onDeleteProject}
+                onOpenProject={onOpenProject}
                 onRenameProject={onRenameProject}
                 projects={sharedProjects}
               />
