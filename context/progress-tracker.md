@@ -9,7 +9,7 @@ change.
 
 ## Current Goal
 
-- Feature 04 done. Ready for next feature spec.
+- Feature 05 done. Ready for next feature spec.
 
 ## Completed
 
@@ -19,6 +19,7 @@ change.
 - **03-auth UI polish**: Auth layout refined to a professional 50/50 desktop split with a differentiated left brand panel, tighter feature rows, and centered Clerk card. Sign-in/sign-up Clerk components now use shadcn + dark theme styling, Geist font variables, icon social buttons, and token-based dark form controls.
 - **03-auth logout fix**: `UserButton` now redirects to `/sign-in` after sign-out, avoiding the root redirect handoff that could leave logout stuck on `Rendering...`.
 - **04-project-dialogs**: Editor home screen added with heading, description, and Plus-backed New Project CTA. Dedicated `useProjectDialogs` hook manages mock project data, dialog state, form state, slug previews, and loading state. Sidebar New project, rename, and delete actions are wired to Create/Rename/Delete dialogs. Owned project actions are hidden for shared projects. Mobile sidebar now has an outside-tap scrim.
+- **05-prisma**: Project and ProjectCollaborator models added in `prisma/models/project.prisma` with ProjectStatus enum, Clerk owner ID, optional description, status, future canvas JSON path, timestamps, cascade collaborator relation, uniqueness, and required indexes. Prisma Client singleton added in `lib/prisma.ts` with `accelerateUrl` for `prisma+postgres://`, direct `@prisma/adapter-pg` for standard Postgres URLs, and development global caching. Initial migration `20260507071804_add_project_models` created and applied. Prisma client generated.
 
 ## In Progress
 
@@ -30,7 +31,7 @@ change.
 
 ## Open Questions
 
-- None currently.
+- `context/architecture-context.md` is referenced by AGENTS.md but is missing; `context/architecture.md` appears to be the active architecture context.
 
 ## Architecture Decisions
 
@@ -47,6 +48,8 @@ change.
 - Clerk appearance uses `shadcn` + `dark` themes from `@clerk/ui/themes`, with `@clerk/ui/themes/shadcn.css` imported in globals.css
 - Auth pages use route group `app/(auth)/` with shared two-panel layout; catch-all segments `[[...sign-in]]` and `[[...sign-up]]` for Clerk's multi-step flows
 - Protected-first middleware: all routes protected except NEXT_PUBLIC_CLERK_SIGN_IN_URL and NEXT_PUBLIC_CLERK_SIGN_UP_URL
+- Project metadata is stored in PostgreSQL through Prisma. Canvas JSON remains externalized for future blob storage via `Project.canvasJsonPath`.
+- Prisma Client singleton lives in `lib/prisma.ts`, uses `accelerateUrl` for `prisma+postgres://` URLs and `@prisma/adapter-pg` for direct Postgres URLs, and is cached on `globalThis` outside production.
 
 ## Session Notes
 
@@ -55,3 +58,4 @@ change.
 - shadcn CLI v4.6.0 used; Node 18 engine warnings are harmless
 - In Next.js 16, middleware.ts is renamed to proxy.ts (same API, new name)
 - Feature 04 verification: `npm run lint` passes and `npx tsc --noEmit` passes. `npm run build` is blocked in WSL because Node is 18.20.8; Next.js 16.2.4 requires Node >=20.9.0.
+- Feature 05 verification: `npx prisma format`, `npx prisma validate`, `npx prisma migrate dev --name add_project_models`, `npx prisma generate`, `npm run lint`, `npx tsc --noEmit`, and `npm run build` pass when run through WSL with Node 20.20.0 from `/home/vaibh/.nvm/versions/node/v20.20.0/bin`.

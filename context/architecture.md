@@ -19,19 +19,20 @@
 
 ## Storage Model
 
-- **[Storage type e.g. Database]**: [What lives here —
-  e.g. metadata, ownership, relationships]
-- **[Storage type e.g. Blob/File Storage]**: [What lives
-  here — e.g. generated files, media, large artifacts]
+- **PostgreSQL via Prisma**: Project metadata, Clerk owner IDs,
+  collaborator email relationships, project status, timestamps,
+  and future canvas blob path references live in the database.
+- **Future blob/file storage**: Large generated canvas JSON will
+  live outside the database. `Project.canvasJsonPath` stores the
+  lookup path for that future storage layer.
 
 ## Auth and Access Model
 
-- [How authentication works — e.g. Every user signs in
-  via Clerk]
-- [How ownership works — e.g. Every project has a single
-  owner]
-- [How access control works — e.g. Only the owner or a
-  collaborator can mutate project resources]
+- Every user signs in via Clerk.
+- Every project has one owner stored as the Clerk user ID in
+  `Project.ownerId`.
+- Project collaboration is represented by collaborator email
+  rows scoped to a project.
 
 ## Invariants
 
