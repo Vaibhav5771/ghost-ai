@@ -5,7 +5,7 @@ change.
 
 ## Current Phase
 
-- Feature 09 complete
+- Feature 12 complete
 
 ## Current Goal
 
@@ -25,6 +25,12 @@ change.
 - **08-editor-workspace-shell**: `/editor/[projectId]` is now a proper server component with auth and access checks. Unauthenticated users redirect to `/sign-in`; missing or unauthorized projects render `components/editor/access-denied.tsx` (centered lock icon + back link). `lib/project-access.ts` provides `getCurrentIdentity()` (Clerk userId + primary email) and `getProjectForUser()` (owner-or-collaborator access check via Prisma). `components/editor/workspace-shell.tsx` is a client component rendering: navbar with project name, disabled Share button, AI panel toggle, and UserButton; existing ProjectSidebar with active room highlighted; canvas placeholder; collapsible right AI panel placeholder. No canvas logic, Liveblocks, or real sharing added.
 - **09-share-dialog**: Share button in the workspace navbar is now active. `app/api/projects/[projectId]/collaborators/route.ts` provides GET (list, owner or collaborator), POST (invite, owner only), and DELETE (remove, owner only). Prisma P2002 on duplicate invite returns 409. Collaborator emails are enriched with display name and avatar via a single batched `clerkClient().users.getUserList()` call; falls back to email-only when no Clerk user is found. `components/editor/share-dialog.tsx` is a client Dialog with: project-link copy row with "Copied!" feedback; invite form (owner only); collaborator list with avatar/initials fallback and per-row remove button (owner only); loading skeleton and empty state. Collaborators see a read-only list.
 
+- **10-liveblocks-setup**: `liveblocks.config.ts` updated with `Presence` (`cursor: {x,y}|null`, `isThinking: boolean`) and `UserMeta` (`info.displayName`, `info.avatarUrl`, `info.cursorColor`). `lib/liveblocks.ts` provides a cached `@liveblocks/node` client and `getCursorColor()` (deterministic hash over a 10-color palette). `app/api/liveblocks-auth/route.ts` is a `POST` endpoint that requires Clerk auth, verifies project access via `getProjectForUser`, calls `getOrCreateRoom` to idempotently create the room, and returns an access-token session with `displayName`, `avatarUrl`, and `cursorColor`. Returns 401/403 for unauthenticated/unauthorized requests. `@liveblocks/node@^3.19.1` installed. `LIVEBLOCKS_SECRET_KEY` placeholder added to `.env.local`. TypeScript compiles clean.
+
+- **11-base-canvas**: `types/canvas.ts` defines `CanvasNodeData` (label, color, shape), `CanvasNode` (`canvasNode` type), and `CanvasEdge` (`canvasEdge` type). `liveblocks.config.ts` Storage updated to `{ flow: LiveblocksFlow<CanvasNode, CanvasEdge> }`. `components/editor/canvas/canvas-wrapper.tsx` sets up `LiveblocksProvider` → `RoomProvider` (with `initialStorage` seeding empty nodes/edges `LiveMap`s and `initialPresence`) → `ClientSideSuspense` → `CanvasFlow`, plus a class-based error boundary for Liveblocks connection failures. `components/editor/canvas/canvas-flow.tsx` uses `useLiveblocksFlow({ suspense: true })` wired into `ReactFlow` with `ConnectionMode.Loose`, `fitView`, dot-pattern `Background`, and `MiniMap`. `@xyflow/react/dist/style.css` imported in `globals.css`. `npm run build` passes.
+
+- **12-shape-panel**: `CanvasShape` type extended to `rectangle | circle | diamond | pill | cylinder | hexagon` with `ShapeDragPayload` and `SHAPE_DRAG_TYPE` exported from `types/canvas.ts`. `components/editor/canvas/shape-panel.tsx` is a pill-shaped floating toolbar (absolute, bottom-center, z-10) with six draggable icon buttons; each button encodes shape + default dimensions as JSON in the `application/ghost-shape` dataTransfer key. `components/editor/canvas/canvas-node.tsx` renders every `canvasNode` type as a bordered rectangle with the label centered; connects via top/bottom handles. `canvas-flow.tsx` wired `nodeTypes`, `onDragOver`, and `onDrop`; drop handler reads the payload, calls `screenToFlowPosition` (centered on cursor), generates an ID as `${shape}-${timestamp}-${counter}`, and inserts via `useMutation` into `storage.flow.nodes`. `canvas-wrapper.tsx` wraps `CanvasFlow` in `ReactFlowProvider` so `useReactFlow` has context. `npm run build` passes without type errors.
+
 ## In Progress
 
 - None.
@@ -32,6 +38,18 @@ change.
 ## Next Up
 
 - Build the next editor workspace feature spec when added.
+
+## Session Notes (12)
+- `useMutation` storage insert uses `node as any` to bypass the strict `LiveObject<...>` generic on the Liveblocks React Flow node type — Liveblocks serializes plain objects at runtime.
+- `ReactFlowProvider` must wrap `CanvasFlow` (not just `ReactFlow`) because `useReactFlow` is called in the same component that renders `<ReactFlow>`, not inside it.
+- Node IDs are generated with a module-level counter so they remain unique across multiple drops in the same session.
+
+## Session Notes (10)
+- `@liveblocks/node` was not in package.json; installed at `^3.19.1` to match existing liveblocks packages.
+- `lib/liveblocks.ts` caches the Liveblocks instance on `globalThis` in non-production (mirrors the Prisma singleton pattern).
+- `getCursorColor` uses a simple djb2-style hash (`hash = (hash * 31 + charCode) >>> 0`) for deterministic mapping of any user ID to one of 10 Material-palette hex colors.
+- Auth route calls `currentUser()` once after the access check to avoid a Clerk API call on unauthorized requests.
+- `LIVEBLOCKS_SECRET_KEY` placeholder added to `.env.local` — must be filled in before the auth route will work.
 
 ## Session Notes (09)
 - Collaborator enrichment uses a single batched `clerkClient().users.getUserList({ emailAddress: emails })` call to avoid per-row Clerk API requests.
