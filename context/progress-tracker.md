@@ -5,11 +5,11 @@ change.
 
 ## Current Phase
 
-- Feature 07 complete
+- Feature 09 complete
 
 ## Current Goal
 
-- Editor home project sidebar and dialogs are wired to the real project API from `context/feature-specs/07-wire-editor-home.md`.
+- Build the next editor workspace feature spec when added.
 
 ## Completed
 
@@ -22,6 +22,8 @@ change.
 - **05-prisma**: Project and ProjectCollaborator models added in `prisma/models/project.prisma` with ProjectStatus enum, Clerk owner ID, optional description, status, future canvas JSON path, timestamps, cascade collaborator relation, uniqueness, and required indexes. Prisma Client singleton added in `lib/prisma.ts` with `accelerateUrl` for `prisma+postgres://`, direct `@prisma/adapter-pg` for standard Postgres URLs, and development global caching. Initial migration `20260507071804_add_project_models` created and applied. Prisma client generated.
 - **06-project-api**: Backend REST route handlers added at `app/api/projects/route.ts` and `app/api/projects/[projectId]/route.ts`. `GET /api/projects` lists the authenticated user's projects, `POST /api/projects` creates a project with the Clerk user ID as `ownerId` and defaults missing names to `Untitled Project`, `PATCH /api/projects/[projectId]` renames owner-owned projects, and `DELETE /api/projects/[projectId]` deletes owner-owned projects. `/api/projects(.*)` now passes through `proxy.ts` so handlers return the required JSON `401`; missing or non-owner mutation targets return `403`.
 - **07-wire-editor-home**: `/editor` is a server component again and fetches owned/shared project lists through `getEditorProjects()` before passing them to the client editor shell. Added `/editor/[projectId]` workspace route using the same server data path. Added `hooks/use-project-actions.ts` for create/rename/delete dialog state and project API mutations. Create generates a slug-based room/project ID with a short unique suffix, sends it to `POST /api/projects`, and navigates to `/editor/[projectId]`; rename refreshes server data after `PATCH`; delete redirects to `/editor` when deleting the active workspace and otherwise refreshes. Sidebar and dialogs now use real project data, room ID previews, rename prefill, and delete project names.
+- **08-editor-workspace-shell**: `/editor/[projectId]` is now a proper server component with auth and access checks. Unauthenticated users redirect to `/sign-in`; missing or unauthorized projects render `components/editor/access-denied.tsx` (centered lock icon + back link). `lib/project-access.ts` provides `getCurrentIdentity()` (Clerk userId + primary email) and `getProjectForUser()` (owner-or-collaborator access check via Prisma). `components/editor/workspace-shell.tsx` is a client component rendering: navbar with project name, disabled Share button, AI panel toggle, and UserButton; existing ProjectSidebar with active room highlighted; canvas placeholder; collapsible right AI panel placeholder. No canvas logic, Liveblocks, or real sharing added.
+- **09-share-dialog**: Share button in the workspace navbar is now active. `app/api/projects/[projectId]/collaborators/route.ts` provides GET (list, owner or collaborator), POST (invite, owner only), and DELETE (remove, owner only). Prisma P2002 on duplicate invite returns 409. Collaborator emails are enriched with display name and avatar via a single batched `clerkClient().users.getUserList()` call; falls back to email-only when no Clerk user is found. `components/editor/share-dialog.tsx` is a client Dialog with: project-link copy row with "Copied!" feedback; invite form (owner only); collaborator list with avatar/initials fallback and per-row remove button (owner only); loading skeleton and empty state. Collaborators see a read-only list.
 
 ## In Progress
 
@@ -30,6 +32,15 @@ change.
 ## Next Up
 
 - Build the next editor workspace feature spec when added.
+
+## Session Notes (09)
+- Collaborator enrichment uses a single batched `clerkClient().users.getUserList({ emailAddress: emails })` call to avoid per-row Clerk API requests.
+- Prisma `@@unique([projectId, email])` catches duplicate invites as a P2002 error returned as 409.
+- `ShareDialog` manages its own fetch/state; workspace-shell passes `isOwner={activeProject.owned}` to gate invite/remove controls.
+
+## Session Notes (08)
+- Feature 08 verification: `npm run lint`, `npx tsc --noEmit`, and `npm run build` pass when run through WSL with Node 20.20.0 from `/home/vaibh/.nvm/versions/node/v20.20.0/bin` and a Linux PATH.
+- `PanelRightOpen`/`PanelRightClose` confirmed available in lucide-react ^0.469.0.
 
 ## Open Questions
 
@@ -53,6 +64,7 @@ change.
 - Project metadata is stored in PostgreSQL through Prisma. Canvas JSON remains externalized for future blob storage via `Project.canvasJsonPath`.
 - Prisma Client singleton lives in `lib/prisma.ts`, uses `accelerateUrl` for `prisma+postgres://` URLs and `@prisma/adapter-pg` for direct Postgres URLs, and is cached on `globalThis` outside production.
 - Editor workspace URLs use `/editor/[projectId]`; Feature 07 aligns the project ID and Liveblocks room ID by allowing `POST /api/projects` to accept a sanitized slug-style client-generated ID while preserving Prisma's default ID strategy when no ID is supplied.
+- `lib/project-access.ts` is the server-side access layer; `lib/project-data.ts` is the server-side data-fetch layer for the sidebar. The two are intentionally separate so the workspace page can do one access check and one full project-list fetch in parallel.
 
 ## Session Notes
 

@@ -1,45 +1,57 @@
-When I am logging in with the email id  the screen changes and keeps on showing the Rendering... 
+We have implemented the feature 08-editor-workspace-shell.md  
 
-and the Console shows these error/warnings 
-clerk.browser.js:18  POST https://feasible-duckling-86.clerk.accounts.dev/v1/client/sign_ins?__clerk_api_version=2025-11-10&_clerk_js_version=6.8.0&__clerk_db_jwt=dvb_3DJg4mOwVra8PMha3eyChhzxzcM 400 (Bad Request)
-tn.retryImmediately @ clerk.browser.js:18
-tn @ clerk.browser.js:16
-o @ clerk.browser.js:18
-await in o
-_baseFetch @ clerk.browser.js:17
-(anonymous) @ clerk.browser.js:17
-execute @ clerk.browser.js:17
-_fetch @ clerk.browser.js:17
-_baseMutate @ clerk.browser.js:18
-_basePost @ clerk.browser.js:18
-create @ clerk.browser.js:18
-eh @ signin_ui_ad69ce_1.7.0.js:1
-eg @ signin_ui_ad69ce_1.7.0.js:1
-d @ ui-common_ui_ad69ce_1.7.0.js:14
-eU @ framework_ui_ad69ce_1.7.0.js:1
-eQ @ framework_ui_ad69ce_1.7.0.js:1
-(anonymous) @ framework_ui_ad69ce_1.7.0.js:1
-re @ framework_ui_ad69ce_1.7.0.js:1
-rn @ framework_ui_ad69ce_1.7.0.js:1
-(anonymous) @ framework_ui_ad69ce_1.7.0.js:1
-oz @ framework_ui_ad69ce_1.7.0.js:1
-eR @ framework_ui_ad69ce_1.7.0.js:1
-ro @ framework_ui_ad69ce_1.7.0.js:1
-nU @ framework_ui_ad69ce_1.7.0.js:1
-nO @ framework_ui_ad69ce_1.7.0.js:1
-4sign-in/factor-one?r…calhost%3A3000%2F:1 Uncaught (in promise) Error: A listener indicated an asynchronous response by returning true, but the message channel closed before a response was received
-(index):1 Uncaught (in promise) Error: A listener indicated an asynchronous response by returning true, but the message channel closed before a response was received
+But now when I:
 
-But when i reload it, successfully returns /editor with the user who was trying to sign-in 
+## Create new project
 
-# Thats solved but now when i am trying to logout 
+- form '/editor' i get this error 
+- DELETE /api/projects/my-system-design-221v6v 200 in 5.2s (next.js: 556ms, proxy.ts: 13ms, application-code: 4.7s)
+⨯ Error [PrismaClientKnownRequestError]:
+Invalid `{imported module ./lib/prisma.ts}["prisma"].project.findMany()` invocation in
+/home/vaibh/ghost-ai/ghost-ai/.next/dev/server/chunks/ssr/[root-of-the-server]__007jtot._.js:390:161        
 
-Now I can see it clearly - that "Rendering..." pill in the bottom-left is the Next.js dev mode SSR indicator.
+  387     },
+  388     select: editorProjectSelect
+  389 }),
+→ 390 userEmails.length > 0 ? {imported module ./lib/prisma.ts}["prisma"].project.findMany(
 
-(index):1 Uncaught (in promise) Error: A listener indicated an asynchronous response by returning true, but the message channel closed before a response was received
-forward-logs-shared.ts:95 [Fast Refresh] rebuilding
-forward-logs-shared.ts:95 [Fast Refresh] done in 487ms
-(index):1 The resource http://localhost:3000/_next/static/media/caa3a2e1cccd8315-s.p.16t1db8_9y2o~.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
-(index):1 The resource http://localhost:3000/_next/static/media/797e433ab948586e-s.p.0.q-h669a_dqa.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. and says "Rendering..."
+    at <unknown> (lib/project-data.ts:41:24)
+    at async getEditorProjects (lib/project-data.ts:34:43)
+    at async EditorPage (app/editor/page.tsx:5:24)
+  39 | ...
+  40 | ...ls.length > 0
+> 41 | ...ma.project.findMany({     
+     |               ^
+  42 | ...ere: {
+  43 | ...ownerId: { not: userId }, 
+  44 | ...collaborators: { {        
+  code: 'ETIMEDOUT',
+  meta: { modelName: 'Project' },   
+  clientVersion: '7.8.0',
+  digest: '3218799563'
+}
+ GET /editor 200 in 2.2s 
 
- 
+## And Delete one 
+
+- [browser] Uncaught PrismaClientKnownRequestError:
+Invalid `__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$prisma$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["prisma"].project.findMany()` invocation in
+/home/vaibh/ghost-ai/ghost-ai/.next/dev/server/chunks/ssr/[root-of-the-server]__007jtot._.js:390:161        
+
+  387     },
+  388     select: editorProjectSelect
+  389 }),
+→ 390 userEmails.length > 0 ? __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$prisma$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["prisma"].project.findMany(
+
+    at <unknown> (lib/project-data.ts:41:24)
+    at Function.all (<anonymous>:1:21)
+  39 | ...
+  40 | ...ls.length > 0
+> 41 | ...ma.project.findMany({
+     |               ^
+  42 | ...ere: {
+  43 | ...ownerId: { not: userId },
+  44 | ...collaborators: {
+ GET /sw.js 404 in 57ms (next.js: 7ms, application-code: 50ms)
+ GET /sw.js 404 in 42ms (next.js: 7ms, application-code: 35ms)
+^C

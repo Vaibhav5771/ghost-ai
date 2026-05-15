@@ -1,8 +1,3 @@
-enum ProjectStatus {
-  DRAFT
-  ARCHIVED
-}
-
 model Project {
   id             String                @id @default(cuid())
   ownerId        String
@@ -21,11 +16,16 @@ model Project {
 model ProjectCollaborator {
   id        String   @id @default(cuid())
   projectId String
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   email     String
   createdAt DateTime @default(now())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, email])
   @@index([email])
   @@index([projectId, createdAt])
+}
+
+enum ProjectStatus {
+  DRAFT
+  ARCHIVED
 }

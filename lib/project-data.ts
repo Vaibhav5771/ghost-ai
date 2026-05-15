@@ -8,7 +8,9 @@ const editorProjectSelect = {
   name: true,
 } as const
 
-function toEditorProject(project: { id: string; name: string }, owned: boolean): EditorProject {
+type SelectedProject = { id: string; name: string }
+
+function toEditorProject(project: SelectedProject, owned: boolean): EditorProject {
   return {
     id: project.id,
     name: project.name,
@@ -31,14 +33,17 @@ export async function getEditorProjects(): Promise<EditorProjectLists> {
   const userEmails =
     user?.emailAddresses.map((emailAddress) => emailAddress.emailAddress.toLowerCase()) ?? []
 
-  const [ownedProjects, sharedProjects] = await Promise.all([
-    prisma.project.findMany({
-      where: { ownerId: userId },
-      orderBy: { createdAt: "desc" },
-      select: editorProjectSelect,
-    }),
+  // Run sequentially — Prisma Postgres direct connections have a low concurrent
+  // connection limit; parallel queries cause ETIMEDOUT on the second query.
+  const ownedProjects: SelectedProject[] = await prisma.project.findMany({
+    where: { ownerId: userId },
+    orderBy: { createdAt: "desc" },
+    select: editorProjectSelect,
+  })
+
+  const sharedProjects: SelectedProject[] =
     userEmails.length > 0
-      ? prisma.project.findMany({
+      ? await prisma.project.findMany({
           where: {
             ownerId: { not: userId },
             collaborators: {
@@ -50,8 +55,7 @@ export async function getEditorProjects(): Promise<EditorProjectLists> {
           orderBy: { createdAt: "desc" },
           select: editorProjectSelect,
         })
-      : [],
-  ])
+      : []
 
   return {
     ownedProjects: ownedProjects.map((project) => toEditorProject(project, true)),
