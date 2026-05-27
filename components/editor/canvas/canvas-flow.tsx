@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback } from "react"
+import { useCallback, useEffect } from "react"
 import { ReactFlow, Background, BackgroundVariant, MiniMap, ConnectionMode, useReactFlow } from "@xyflow/react"
 import { useLiveblocksFlow } from "@liveblocks/react-flow"
 import { useMutation } from "@liveblocks/react"
@@ -8,6 +8,7 @@ import { useMutation } from "@liveblocks/react"
 import type { CanvasNode, CanvasEdge } from "@/types/canvas"
 import { SHAPE_DRAG_TYPE, type ShapeDragPayload } from "@/types/canvas"
 import { CanvasNodeComponent } from "./canvas-node"
+import { MinimapShape } from "./minimap-shape"
 import { ShapePanel } from "./shape-panel"
 
 const nodeTypes = { canvasNode: CanvasNodeComponent }
@@ -18,10 +19,29 @@ export function CanvasFlow() {
     useLiveblocksFlow<CanvasNode, CanvasEdge>({ suspense: true })
   const { screenToFlowPosition } = useReactFlow()
 
-  const addNode = useMutation(({ storage }, node: CanvasNode) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    storage.get("flow").get("nodes").set(node.id, node as any)
+  // Heal rooms that contain plain-object nodes from the pre-fix drop handler.
+  // Liveblocks-react-flow expects each stored value to be a LiveObject; a plain
+  // object crashes on the first `.get`/`.setLocal` call during measure/drag.
+  const removeLegacyNodes = useMutation(({ storage }) => {
+    const nodesMap = storage.get("flow").get("nodes")
+    const legacy: CanvasNode[] = []
+    for (const [, entry] of nodesMap.entries()) {
+      if (typeof (entry as { get?: unknown }).get !== "function") {
+        legacy.push({ ...(entry as unknown as CanvasNode) })
+      }
+    }
+    for (const node of legacy) {
+      nodesMap.delete(node.id)
+    }
+    return legacy
   }, [])
+
+  useEffect(() => {
+    const legacy = removeLegacyNodes()
+    if (legacy.length > 0) {
+      onNodesChange(legacy.map((item) => ({ type: "add", item })))
+    }
+  }, [removeLegacyNodes, onNodesChange])
 
   const onDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -46,9 +66,12 @@ export function CanvasFlow() {
         width: payload.width,
         height: payload.height,
       }
-      addNode(node)
+      // Route insertion through onNodesChange so @liveblocks/react-flow wraps
+      // the node as a LiveObject (with NODE_BASE_CONFIG). A plain `.set(id, node)`
+      // would lack the `setLocal`/atomic-field machinery that drag/select use.
+      onNodesChange([{ type: "add", item: node }])
     },
-    [screenToFlowPosition, addNode],
+    [screenToFlowPosition, onNodesChange],
   )
 
   return (
@@ -68,6 +91,7 @@ export function CanvasFlow() {
       >
         <Background variant={BackgroundVariant.Dots} />
         <MiniMap
+          nodeComponent={MinimapShape}
           nodeColor="oklch(0.7 0 0)"
           maskColor="rgba(0,0,0,0.55)"
           style={{

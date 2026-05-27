@@ -5,7 +5,7 @@ change.
 
 ## Current Phase
 
-- Feature 12 complete
+- Feature 13 complete
 
 ## Current Goal
 
@@ -31,6 +31,8 @@ change.
 
 - **12-shape-panel**: `CanvasShape` type extended to `rectangle | circle | diamond | pill | cylinder | hexagon` with `ShapeDragPayload` and `SHAPE_DRAG_TYPE` exported from `types/canvas.ts`. `components/editor/canvas/shape-panel.tsx` is a pill-shaped floating toolbar (absolute, bottom-center, z-10) with six draggable icon buttons; each button encodes shape + default dimensions as JSON in the `application/ghost-shape` dataTransfer key. `components/editor/canvas/canvas-node.tsx` renders every `canvasNode` type as a bordered rectangle with the label centered; connects via top/bottom handles. `canvas-flow.tsx` wired `nodeTypes`, `onDragOver`, and `onDrop`; drop handler reads the payload, calls `screenToFlowPosition` (centered on cursor), generates an ID as `${shape}-${timestamp}-${counter}`, and inserts via `useMutation` into `storage.flow.nodes`. `canvas-wrapper.tsx` wraps `CanvasFlow` in `ReactFlowProvider` so `useReactFlow` has context. `npm run build` passes without type errors.
 
+- **13-node-shape**: New `components/editor/canvas/shape-visual.tsx` renders all six node shapes, sharing constants for default fill (`oklch(0.22 0 0)`), rest border (`rgba(255,255,255,0.15)`), and selected border (`oklch(0.7 0.15 250)`). Rectangle, pill, and circle use CSS (`border-radius` of `6`, `9999`, and `50%`); diamond, hexagon, and cylinder render via SVG with `viewBox="0 0 100 100"`, `preserveAspectRatio="none"` so they stretch to the node's width/height, and `vectorEffect="non-scaling-stroke"` so the 1px stroke stays consistent at any size. Cylinder is composed of a body path plus a top ellipse (back arc hidden behind the ellipse fill). `canvas-node.tsx` now wraps `ShapeVisual` with absolutely-positioned label and top/bottom handles. `shape-panel.tsx` adds an off-screen drag-preview container (`position: absolute; left: -10000px`) holding six `ShapeVisual` previews sized to each shape's default width/height; `onDragStart` calls `dataTransfer.setDragImage(preview, width/2, height/2)` so the ghost stays centered on the cursor. The browser automatically hides the drag image on drop or cancel. `npm run build` passes without type errors.
+
 ## In Progress
 
 - None.
@@ -38,6 +40,15 @@ change.
 ## Next Up
 
 - Build the next editor workspace feature spec when added.
+
+## Session Notes (13)
+- Shape rendering split into a shared `ShapeVisual` component so the same renderer powers both the node and the drag preview — keeps shapes visually identical and avoids drift.
+- `preserveAspectRatio="none"` + `vectorEffect="non-scaling-stroke"` is what lets diamond/hexagon/cylinder stretch to arbitrary node sizes without distorting the stroke width.
+- HTML5 drag image element needs to be in the DOM and rendered (not `display: none`) when `setDragImage` is called, so the off-screen previews use `position: absolute; left: -10000px` rather than `display: none` or `visibility: hidden`.
+- Drag image is centered on the cursor by passing `(width/2, height/2)` as the offset to `setDragImage` — matches the drop handler which centers the node on `clientX`/`clientY`.
+- Fix carried over from feature 12: `canvas-flow.tsx` previously dropped nodes via a custom `useMutation` that did `storage.get("flow").get("nodes").set(id, node as any)`. That stored a plain object, so as soon as React Flow tried to drag/measure/select the node `@liveblocks/react-flow` crashed with `node.setLocal is not a function` or `node.get is not a function`. Insertion now goes through `onNodesChange([{ type: "add", item: node }])`, which is the library's own path and runs the internal `toLiveblocksInternalNode` wrapper (LiveObject + `NODE_BASE_CONFIG` with atomic `position` and local-only `selected`/`dragging`/`measured`/`resizing`).
+- Legacy data heal: rooms persisted by the broken handler still contain plain-object nodes. `canvas-flow.tsx` adds a `removeLegacyNodes` mutation + `useEffect` that runs once on mount — it scans `storage.flow.nodes` for entries missing a LiveObject `.get` method, deletes them, then re-adds them through `onNodesChange` so they get re-wrapped. Subsequent loads are no-ops. The mutation runs synchronously inside the effect, before React Flow's ResizeObserver fires, so the first measurement pass operates on healthy LiveObjects.
+- MiniMap shapes: by default `<MiniMap>` renders every node as a rounded rect. `components/editor/canvas/minimap-shape.tsx` is a custom `nodeComponent` that subscribes to each node's data via `useNodesData(id)` and emits the matching SVG primitive: `<rect rx={5}>` for rectangle, `<rect rx={height/2}>` for pill, `<ellipse>` for circle, `<polygon>` for diamond/hexagon, and a body `<path>` + top `<ellipse>` for cylinder. Passed to `<MiniMap nodeComponent={MinimapShape}>` so the minimap visualization matches the canvas.
 
 ## Session Notes (12)
 - `useMutation` storage insert uses `node as any` to bypass the strict `LiveObject<...>` generic on the Liveblocks React Flow node type — Liveblocks serializes plain objects at runtime.
