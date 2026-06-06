@@ -5,7 +5,7 @@ change.
 
 ## Current Phase
 
-- Feature 13 complete
+- Feature 14 complete
 
 ## Current Goal
 
@@ -33,6 +33,8 @@ change.
 
 - **13-node-shape**: New `components/editor/canvas/shape-visual.tsx` renders all six node shapes, sharing constants for default fill (`oklch(0.22 0 0)`), rest border (`rgba(255,255,255,0.15)`), and selected border (`oklch(0.7 0.15 250)`). Rectangle, pill, and circle use CSS (`border-radius` of `6`, `9999`, and `50%`); diamond, hexagon, and cylinder render via SVG with `viewBox="0 0 100 100"`, `preserveAspectRatio="none"` so they stretch to the node's width/height, and `vectorEffect="non-scaling-stroke"` so the 1px stroke stays consistent at any size. Cylinder is composed of a body path plus a top ellipse (back arc hidden behind the ellipse fill). `canvas-node.tsx` now wraps `ShapeVisual` with absolutely-positioned label and top/bottom handles. `shape-panel.tsx` adds an off-screen drag-preview container (`position: absolute; left: -10000px`) holding six `ShapeVisual` previews sized to each shape's default width/height; `onDragStart` calls `dataTransfer.setDragImage(preview, width/2, height/2)` so the ghost stays centered on the cursor. The browser automatically hides the drag image on drop or cancel. `npm run build` passes without type errors.
 
+- **14-node-editing**: `canvas-node.tsx` now mounts `<NodeResizer>` (visible only when `selected`, `minWidth=60`, `minHeight=40`, transparent line variant, 8x8 square handles with dark fill and accent `oklch(0.7 0.15 250)` border) so React Flow's controlled resize changes flow back through the same `onNodesChange` path that `@liveblocks/react-flow` wraps. The label container is a single absolute, `inset:0`, flex-centered div that swaps a centered `<span>` (with `"Add label"` placeholder in dimmer text when `data.label` is empty) and a `<textarea>` in-place — same parent, no layout shift. Double-clicking the container (with `stopPropagation` so React Flow does not also receive it) enters edit mode; the textarea is `rows={1}` with auto-grow on input (`scrollHeight` measurement) and centered text. Editing closes on `onBlur` or `Escape`. Textarea carries `className="nodrag nopan nowheel"` and stops `mousedown`/`pointerdown`/`wheel` propagation so typing, drag-selecting, and wheel scrolling inside the textarea do not start node drag, pane pan, or pane zoom. Label writes go through a `useMutation` that calls `storage.get("flow").get("nodes").get(id).get("data").set("label", value)` on the underlying LiveObject — the same Storage path the legacy-heal mutation uses — keeping updates on the existing collaborative flow without going through `onNodesChange`. The component subscribes to `data.label` as the controlled value so live updates from other clients are reflected immediately. `npx tsc --noEmit` and `npm run lint` pass clean.
+
 ## In Progress
 
 - None.
@@ -40,6 +42,16 @@ change.
 ## Next Up
 
 - Build the next editor workspace feature spec when added.
+
+## Session Notes (14)
+- `<NodeResizer>` is added inside the custom node and only sets `isVisible`/`min*` props; it dispatches `dimensions` + `position` changes through the same `onNodesChange` that `useLiveblocksFlow` already wraps, so resize syncs to Storage without any custom mutation. Verified the `NODE_BASE_CONFIG` in `@liveblocks/react-flow` makes `position` atomic and treats `width`/`height` as deep-synced fields.
+- Label writes can't go through `onNodesChange` with a `replace` change because `useLiveblocksFlow` syncs `data` as a (deep) LiveObject — replacing the whole node would re-create the LiveObject and break references for in-flight selection/drag state. Direct LiveObject write via `useMutation` (`storage.get("flow").get("nodes").get(id).get("data").set("label", value)`) is the path that keeps the existing node identity and patches just the label key.
+- Existing `data.label` reads come from the controlled `nodes` array returned by `useLiveblocksFlow`, which already subscribes to Storage. Using it as the textarea's `value` keeps the typing experience real-time without local mirror state and lets concurrent updates from other clients show up live.
+- Label + textarea share one `position: absolute; inset: 0; display: flex; align-items: center; justify-content: center` container; swapping the inner child in place is what satisfies "no layout shift" — sizes/positions are identical between the two modes.
+- Textarea uses `rows={1}` and auto-resizes on input by setting `style.height = "auto"` then `scrollHeight + "px"`. Initial mount runs the same measurement inside the `editing` effect so labels that were already multi-line open at the correct height.
+- `className="nodrag nopan nowheel"` plus `stopPropagation` on `mousedown`/`pointerdown`/`wheel` was needed (just `nodrag`/`nopan` was not enough in 12.10.2 — wheel scrolling inside the textarea still bubbled to the pane zoom, and React Flow occasionally claimed the pointer for selection-box drag before nodrag could short-circuit).
+- Initial `useEffect` had a second effect that called `setEditing(false)` when the node became deselected. React 19's `react-hooks/set-state-in-effect` flagged it, and it was redundant anyway — clicking off the node loses focus on the textarea, which triggers `onBlur` → `setEditing(false)`. Removed.
+- Empty-label rendering: when `data.label` is falsy the span renders `"Add label"` at the same centered position with a dimmer color (`rgba(255,255,255,0.35)`), so the placeholder occupies the same slot a real label would, matching the spec's "same centered position" requirement. The textarea also carries `placeholder="Add label"` so the same hint shows while editing an empty node.
 
 ## Session Notes (13)
 - Shape rendering split into a shared `ShapeVisual` component so the same renderer powers both the node and the drag preview — keeps shapes visually identical and avoids drift.
@@ -107,3 +119,5 @@ change.
 - Feature 06 verification: `npm run lint`, `npx tsc --noEmit`, and `npm run build` pass when run through WSL with Node 20.20.0 from `/home/vaibh/.nvm/versions/node/v20.20.0/bin` and a compact Linux-only PATH.
 - Feature 07 spec read: editor home must fetch project lists server-side, use real project API mutations, show room ID previews, navigate create results to workspaces, refresh rename/delete, and redirect home when deleting the active workspace.
 - Feature 07 verification: `npm run lint`, `npx tsc --noEmit`, and `npm run build` pass when run through WSL with Node 20.20.0 from `/home/vaibh/.nvm/versions/node/v20.20.0/bin` and a Linux PATH that includes `/bin` for npm script spawning.
+- Feature 14 verification: `npx tsc --noEmit` and `npm run lint` pass clean for `components/editor/canvas/canvas-node.tsx`. `npm run build` compiles the touched code but stops in page-data collection because this Windows checkout has no `.env.local` (`DATABASE_URL` unset) — environmental, not a code regression. `npx prisma generate` was run once locally because `app/generated/prisma` did not exist on this machine; this is a per-machine setup step, not a code change. The Windows checkout was also missing `lightningcss-win32-x64-msvc` (Tailwind v4's native CSS binary); `npm install --no-save lightningcss-win32-x64-msvc` repaired this for local builds without touching `package.json`.
+- Feature 14 not interactively verified: the dev server was not started in-session, so resize/edit flows have not been exercised in a browser. Worth sanity-checking before shipping.
