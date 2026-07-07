@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import {
+  LayoutTemplate,
   PanelLeftClose,
   PanelLeftOpen,
   Share2,
@@ -30,6 +31,7 @@ export function WorkspaceShell({
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isAiPanelOpen, setIsAiPanelOpen] = useState(false)
   const [isShareOpen, setIsShareOpen] = useState(false)
+  const [isTemplatesOpen, setIsTemplatesOpen] = useState(false)
 
   const projectActions = useProjectActions({
     activeProjectId: activeProject.id,
@@ -77,6 +79,18 @@ export function WorkspaceShell({
             AI
           </Button>
 
+          {/* Templates Button */}
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setIsTemplatesOpen(true)}
+            className="gap-2 rounded-lg"
+            aria-label="Start from a template"
+          >
+            <LayoutTemplate className="h-4 w-4" />
+            Templates
+          </Button>
+
           {/* Share Button */}
           <Button
             variant="secondary"
@@ -107,7 +121,11 @@ export function WorkspaceShell({
         />
 
         <main className="flex-1 overflow-hidden bg-background">
-          <CanvasWrapper roomId={activeProject.id} />
+          <CanvasWrapper
+            roomId={activeProject.id}
+            templatesOpen={isTemplatesOpen}
+            onTemplatesOpenChange={setIsTemplatesOpen}
+          />
         </main>
 
         {isAiPanelOpen ? (
