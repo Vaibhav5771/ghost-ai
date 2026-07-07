@@ -9,6 +9,8 @@ import { CanvasFlow } from "./canvas-flow"
 
 interface CanvasWrapperProps {
   roomId: string
+  templatesOpen: boolean
+  onTemplatesOpenChange: (open: boolean) => void
 }
 
 class LiveblocksErrorBoundary extends Component<
@@ -30,7 +32,7 @@ class LiveblocksErrorBoundary extends Component<
   }
 }
 
-export function CanvasWrapper({ roomId }: CanvasWrapperProps) {
+export function CanvasWrapper({ roomId, templatesOpen, onTemplatesOpenChange }: CanvasWrapperProps) {
   return (
     <LiveblocksErrorBoundary
       fallback={
@@ -58,7 +60,10 @@ export function CanvasWrapper({ roomId }: CanvasWrapperProps) {
             }
           >
             <ReactFlowProvider>
-              <CanvasFlow />
+              <CanvasFlow
+                templatesOpen={templatesOpen}
+                onTemplatesOpenChange={onTemplatesOpenChange}
+              />
             </ReactFlowProvider>
           </ClientSideSuspense>
         </RoomProvider>
