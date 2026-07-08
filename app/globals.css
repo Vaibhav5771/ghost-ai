@@ -141,3 +141,17 @@ body {
 @utility slide-out-from-top-48 {
   --tw-enter-translate-y: -48%;
 }
+
+/* Local cursor on the canvas pane matches the collaborator "kite" pointer from
+ * live-cursors.tsx: same SVG path, filled with the brand blue (oklch(0.7 0.15 250)
+ * ≈ #4d94f0). Hotspot (1 1) sits at the arrow tip so clicks land where the tip
+ * points. React Flow's default rules (cursor:pointer on .selection, grabbing on
+ * .dragging) get overridden here. */
+.react-flow__pane {
+  cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='22' viewBox='0 0 16 22'><path d='M1 1 L1 15 L5 11 L7.5 18 L10 17 L7.5 10 L13 10 Z' fill='%234d94f0' stroke='rgba(0,0,0,0.35)' stroke-width='0.75' stroke-linejoin='round'/></svg>") 1 1, default;
+}
+.react-flow__pane.selection,
+.react-flow__pane.selection.dragging,
+.react-flow__pane.dragging {
+  cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='22' viewBox='0 0 16 22'><path d='M1 1 L1 15 L5 11 L7.5 18 L10 17 L7.5 10 L13 10 Z' fill='%234d94f0' stroke='rgba(0,0,0,0.35)' stroke-width='0.75' stroke-linejoin='round'/></svg>") 1 1, default;
+}

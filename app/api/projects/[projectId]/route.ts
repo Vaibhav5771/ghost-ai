@@ -8,7 +8,7 @@ const projectSelect = {
   name: true,
   description: true,
   status: true,
-  canvasJsonPath: true,
+  canvasBlobUrl: true,
   createdAt: true,
   updatedAt: true,
 } as const;

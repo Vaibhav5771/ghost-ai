@@ -1,21 +1,26 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
+  AlertCircle,
+  Check,
   LayoutTemplate,
+  Loader2,
   PanelLeftClose,
   PanelLeftOpen,
+  Save,
   Share2,
 } from "lucide-react"
-import { UserButton } from "@clerk/nextjs"
 
 import { Button } from "@/components/ui/button"
+import { AiSidebar } from "@/components/editor/ai-sidebar/ai-sidebar"
 import { ProjectDialogs } from "@/components/editor/project-dialogs"
 import { ProjectSidebar } from "@/components/editor/project-sidebar"
 import { ShareDialog } from "@/components/editor/share-dialog"
 import { CanvasWrapper } from "@/components/editor/canvas/canvas-wrapper"
 import { useProjectActions } from "@/hooks/use-project-actions"
+import type { CanvasSaveStatus } from "@/hooks/use-canvas-autosave"
 import type { EditorProject, EditorProjectLists } from "@/lib/project-types"
 
 interface WorkspaceShellProps extends EditorProjectLists {
@@ -32,6 +37,16 @@ export function WorkspaceShell({
   const [isAiPanelOpen, setIsAiPanelOpen] = useState(false)
   const [isShareOpen, setIsShareOpen] = useState(false)
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<CanvasSaveStatus>("idle")
+
+  // Fade a fresh "Saved" back to "idle" after a beat so the pill doesn't sit
+  // permanently in the success state — matches the ergonomic feel of Notion /
+  // Figma save indicators. "Saving" and "error" persist until they change.
+  useEffect(() => {
+    if (saveStatus !== "saved") return
+    const timeout = window.setTimeout(() => setSaveStatus("idle"), 1600)
+    return () => window.clearTimeout(timeout)
+  }, [saveStatus])
 
   const projectActions = useProjectActions({
     activeProjectId: activeProject.id,
@@ -67,6 +82,9 @@ export function WorkspaceShell({
         <div className="flex-1" />
 
         <div className="flex items-center gap-2 pr-2">
+          {/* Save Button (status indicator + optional manual trigger) */}
+          <SaveStatusButton status={saveStatus} />
+
           {/* AI Button */}
           <Button
             variant="secondary"
@@ -102,8 +120,6 @@ export function WorkspaceShell({
             <Share2 className="h-4 w-4" />
             Share
           </Button>
-
-          <UserButton />
         </div>
       </header>
 
@@ -122,20 +138,19 @@ export function WorkspaceShell({
 
         <main className="flex-1 overflow-hidden bg-background">
           <CanvasWrapper
-            roomId={activeProject.id}
+            projectId={activeProject.id}
             templatesOpen={isTemplatesOpen}
             onTemplatesOpenChange={setIsTemplatesOpen}
+            onSaveStatusChange={setSaveStatus}
           />
         </main>
 
-        {isAiPanelOpen ? (
-          <aside className="flex w-80 shrink-0 items-center justify-center border-l border-border bg-card">
-            <p className="text-sm text-muted-foreground">
-              AI chat coming soon
-            </p>
-          </aside>
-        ) : null}
       </div>
+
+      <AiSidebar
+        isOpen={isAiPanelOpen}
+        onClose={() => setIsAiPanelOpen(false)}
+      />
 
       <ProjectDialogs
         activeProject={projectActions.activeProject}
@@ -157,5 +172,58 @@ export function WorkspaceShell({
         isOwner={activeProject.owned}
       />
     </div>
+  )
+}
+
+interface SaveStatusButtonProps {
+  status: CanvasSaveStatus
+}
+
+function SaveStatusButton({ status }: SaveStatusButtonProps) {
+  const { icon, label, ariaLabel, tone } = (() => {
+    switch (status) {
+      case "saving":
+        return {
+          icon: <Loader2 className="h-4 w-4 animate-spin" />,
+          label: "Saving",
+          ariaLabel: "Saving canvas",
+          tone: "text-muted-foreground",
+        }
+      case "saved":
+        return {
+          icon: <Check className="h-4 w-4 text-emerald-400" />,
+          label: "Saved",
+          ariaLabel: "Canvas saved",
+          tone: "text-foreground",
+        }
+      case "error":
+        return {
+          icon: <AlertCircle className="h-4 w-4 text-destructive" />,
+          label: "Retry",
+          ariaLabel: "Save failed",
+          tone: "text-destructive",
+        }
+      default:
+        return {
+          icon: <Save className="h-4 w-4" />,
+          label: "Save",
+          ariaLabel: "Save status",
+          tone: "text-foreground",
+        }
+    }
+  })()
+
+  return (
+    <Button
+      variant="secondary"
+      size="sm"
+      className={`gap-2 rounded-lg ${tone}`}
+      aria-label={ariaLabel}
+      aria-live="polite"
+      disabled={status === "saving"}
+    >
+      {icon}
+      {label}
+    </Button>
   )
 }

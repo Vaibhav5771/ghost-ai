@@ -6,11 +6,13 @@ import { LiveObject, LiveMap } from "@liveblocks/client"
 import { ReactFlowProvider } from "@xyflow/react"
 
 import { CanvasFlow } from "./canvas-flow"
+import type { CanvasSaveStatus } from "@/hooks/use-canvas-autosave"
 
 interface CanvasWrapperProps {
-  roomId: string
+  projectId: string
   templatesOpen: boolean
   onTemplatesOpenChange: (open: boolean) => void
+  onSaveStatusChange?: (status: CanvasSaveStatus) => void
 }
 
 class LiveblocksErrorBoundary extends Component<
@@ -32,7 +34,12 @@ class LiveblocksErrorBoundary extends Component<
   }
 }
 
-export function CanvasWrapper({ roomId, templatesOpen, onTemplatesOpenChange }: CanvasWrapperProps) {
+export function CanvasWrapper({
+  projectId,
+  templatesOpen,
+  onTemplatesOpenChange,
+  onSaveStatusChange,
+}: CanvasWrapperProps) {
   return (
     <LiveblocksErrorBoundary
       fallback={
@@ -43,8 +50,8 @@ export function CanvasWrapper({ roomId, templatesOpen, onTemplatesOpenChange }: 
     >
       <LiveblocksProvider authEndpoint="/api/liveblocks-auth">
         <RoomProvider
-          id={roomId}
-          initialPresence={{ cursor: null, isThinking: false }}
+          id={projectId}
+          initialPresence={{ cursor: null, thinking: false }}
           initialStorage={() => ({
             flow: new LiveObject({
               nodes: new LiveMap(),
@@ -61,8 +68,10 @@ export function CanvasWrapper({ roomId, templatesOpen, onTemplatesOpenChange }: 
           >
             <ReactFlowProvider>
               <CanvasFlow
+                projectId={projectId}
                 templatesOpen={templatesOpen}
                 onTemplatesOpenChange={onTemplatesOpenChange}
+                onSaveStatusChange={onSaveStatusChange}
               />
             </ReactFlowProvider>
           </ClientSideSuspense>
