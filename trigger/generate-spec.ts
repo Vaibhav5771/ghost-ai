@@ -1,70 +1,158 @@
-import { put } from "@vercel/blob";
-import { logger, schemaTask } from "@trigger.dev/sdk/v3";
+import { logger, metadata, schemaTask } from "@trigger.dev/sdk/v3";
 import { z } from "zod";
+import { createGroq } from "@ai-sdk/groq";
+import { generateText } from "ai";
+import { put } from "@vercel/blob";
 
-import type { CanvasEdge, CanvasNode } from "@/types/canvas";
+import { prisma } from "@/lib/prisma";
 
-const canvasNodeSchema: z.ZodType<CanvasNode> = z.any();
-const canvasEdgeSchema: z.ZodType<CanvasEdge> = z.any();
+const canvasNodeSchema = z.object({
+  id: z.string(),
+  data: z
+    .object({
+      label: z.string().optional(),
+      shape: z.string().optional(),
+      color: z.string().optional(),
+    })
+    .passthrough()
+    .optional(),
+  position: z.object({ x: z.number(), y: z.number() }).optional(),
+  type: z.string().optional(),
+}).passthrough();
+
+const canvasEdgeSchema = z.object({
+  id: z.string(),
+  source: z.string(),
+  target: z.string(),
+  data: z
+    .object({ label: z.string().optional() })
+    .passthrough()
+    .optional(),
+  type: z.string().optional(),
+}).passthrough();
+
+const chatMessageSchema = z.object({
+  role: z.enum(["user", "assistant"]),
+  content: z.string(),
+});
+
+const SYSTEM_PROMPT = `You are Ghost AI, a technical documentation assistant.
+Given a system architecture canvas (nodes and edges) and a conversation history, produce a concise Markdown technical specification.
+
+Structure the spec as:
+# <Project Title> — Technical Specification
+
+## Overview
+One paragraph describing the system purpose and key characteristics.
+
+## Components
+For each node on the canvas: its role, responsibilities, and any notable properties.
+
+## Data Flow
+Describe the connections between components and how data moves through the system.
+
+## Technical Notes
+Any implementation details, constraints, or recommendations inferred from the architecture.
+
+Keep the tone professional and precise. Use bullet points inside sections where appropriate.`;
 
 export const generateSpecTask = schemaTask({
   id: "generate-spec",
   maxDuration: 300,
+  retry: { maxAttempts: 2 },
   schema: z.object({
     projectId: z.string().min(1),
-    projectName: z.string().optional(),
-    nodes: z.array(canvasNodeSchema),
-    edges: z.array(canvasEdgeSchema),
+    roomId: z.string().min(1),
+    chatHistory: z.array(chatMessageSchema).default([]),
+    nodes: z.array(canvasNodeSchema).default([]),
+    edges: z.array(canvasEdgeSchema).default([]),
   }),
-  run: async ({ projectId, projectName, nodes, edges }) => {
-    logger.log("generate-spec building markdown", {
+  run: async ({ projectId, chatHistory, nodes, edges }) => {
+    logger.log("generate-spec started", {
       projectId,
       nodeCount: nodes.length,
       edgeCount: edges.length,
+      chatHistoryLength: chatHistory.length,
     });
 
-    // TODO(LLM): swap this deterministic renderer for a model call that
-    // turns the canvas into a rich spec. For now emit a straightforward
-    // listing so the blob write + downstream consumers can be exercised.
-    const title = projectName ?? projectId;
-    const nodeSection = nodes.length
+    metadata.set("status", "starting");
+
+    const nodeDescriptions = nodes.length
       ? nodes
-          .map((node) => {
-            const label = node.data?.label ?? node.id;
-            return `- **${label}** (\`${node.id}\`, shape: ${node.data?.shape ?? "rectangle"})`;
+          .map((n) => {
+            const label = n.data?.label ?? n.id;
+            const shape = n.data?.shape ?? "rectangle";
+            return `- ${label} (id: ${n.id}, shape: ${shape})`;
           })
           .join("\n")
-      : "_No nodes on the canvas yet._";
+      : "No nodes on the canvas yet.";
 
-    const edgeSection = edges.length
+    const edgeDescriptions = edges.length
       ? edges
-          .map((edge) => {
-            const label = edge.data?.label ? ` — ${edge.data.label}` : "";
-            return `- \`${edge.source}\` → \`${edge.target}\`${label}`;
+          .map((e) => {
+            const label = e.data?.label ? ` [${e.data.label}]` : "";
+            return `- ${e.source} → ${e.target}${label}`;
           })
           .join("\n")
-      : "_No connections yet._";
+      : "No connections yet.";
 
-    const markdown = [
-      `# ${title} — Design Spec`,
+    const canvasContext = [
+      "## Canvas Nodes",
+      nodeDescriptions,
       "",
-      "## Nodes",
-      nodeSection,
-      "",
-      "## Connections",
-      edgeSection,
-      "",
+      "## Canvas Connections",
+      edgeDescriptions,
     ].join("\n");
 
-    // Same private-blob pattern used by app/api/projects/[projectId]/canvas/route.ts
-    // so reads go through the SDK with the read-write token.
-    const blob = await put(`projects/${projectId}/spec.md`, markdown, {
-      access: "private",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: "text/markdown; charset=utf-8",
+    const conversationContext =
+      chatHistory.length > 0
+        ? chatHistory
+            .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+            .join("\n")
+        : "No prior conversation.";
+
+    const userPrompt = [
+      "Generate a technical specification for this system architecture.",
+      "",
+      "### Conversation History",
+      conversationContext,
+      "",
+      "### Canvas State",
+      canvasContext,
+    ].join("\n");
+
+    metadata.set("status", "generating");
+
+    const groq = createGroq({
+      apiKey: process.env.GROQ_API_KEY,
     });
 
-    return { projectId, url: blob.url, pathname: blob.pathname };
+    const { text } = await generateText({
+      model: groq("meta-llama/llama-4-scout-17b-16e-instruct"),
+      system: SYSTEM_PROMPT,
+      prompt: userPrompt,
+    });
+
+    logger.log("generate-spec completed", { specLength: text.length });
+    metadata.set("status", "complete");
+
+    const blob = await put(
+      `projects/${projectId}/specs/${Date.now()}.md`,
+      text,
+      {
+        access: "private",
+        addRandomSuffix: false,
+        allowOverwrite: false,
+        contentType: "text/markdown; charset=utf-8",
+      },
+    );
+
+    const specRecord = await prisma.projectSpec.create({
+      data: { projectId, filePath: blob.url },
+    });
+
+    logger.log("generate-spec persisted", { specId: specRecord.id, blobUrl: blob.url });
+
+    return { spec: text, specId: specRecord.id };
   },
 });

@@ -9,16 +9,25 @@ import { cn } from "@/lib/utils"
 
 import { AiArchitectTab } from "./ai-architect-tab"
 import { AiSpecsTab } from "./ai-specs-tab"
+import type { ChatMessage } from "@/types/tasks"
 
 export interface AiSidebarProps {
   isOpen: boolean
   onClose: () => void
+  projectId: string
+  messages?: ChatMessage[]
+  onSend?: (prompt: string) => void
+  isThinking?: boolean
+  statusMessage?: string
+  onGenerateSpec?: () => Promise<void>
+  isGeneratingSpec?: boolean
+  specRefreshKey?: number
 }
 
 const TAB_TRIGGER_CLASS =
   "flex-1 rounded-md text-sm font-medium text-muted-foreground transition-colors data-[state=active]:bg-primary/15 data-[state=active]:text-primary"
 
-export function AiSidebar({ isOpen, onClose }: AiSidebarProps) {
+export function AiSidebar({ isOpen, onClose, projectId, messages = [], onSend, isThinking, statusMessage, onGenerateSpec, isGeneratingSpec, specRefreshKey }: AiSidebarProps) {
   const [tab, setTab] = useState<"architect" | "specs">("architect")
 
   return (
@@ -51,14 +60,24 @@ export function AiSidebar({ isOpen, onClose }: AiSidebarProps) {
           value="architect"
           className="mt-0 flex flex-1 flex-col overflow-hidden focus-visible:ring-0"
         >
-          <AiArchitectTab />
+          <AiArchitectTab
+            messages={messages}
+            onSend={onSend}
+            isThinking={isThinking}
+            statusMessage={statusMessage}
+          />
         </TabsContent>
 
         <TabsContent
           value="specs"
           className="mt-0 flex flex-1 flex-col overflow-hidden focus-visible:ring-0"
         >
-          <AiSpecsTab />
+          <AiSpecsTab
+            projectId={projectId}
+            onGenerateSpec={onGenerateSpec}
+            isGeneratingSpec={isGeneratingSpec}
+            specRefreshKey={specRefreshKey}
+          />
         </TabsContent>
       </Tabs>
     </aside>

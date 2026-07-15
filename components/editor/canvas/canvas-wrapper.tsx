@@ -2,17 +2,23 @@
 
 import { Component, type ReactNode } from "react"
 import { LiveblocksProvider, RoomProvider, ClientSideSuspense } from "@liveblocks/react"
-import { LiveObject, LiveMap } from "@liveblocks/client"
+import { LiveList, LiveObject, LiveMap } from "@liveblocks/client"
 import { ReactFlowProvider } from "@xyflow/react"
 
 import { CanvasFlow } from "./canvas-flow"
 import type { CanvasSaveStatus } from "@/hooks/use-canvas-autosave"
+import type { ChatMessage } from "@/types/tasks"
 
 interface CanvasWrapperProps {
   projectId: string
   templatesOpen: boolean
   onTemplatesOpenChange: (open: boolean) => void
   onSaveStatusChange?: (status: CanvasSaveStatus) => void
+  onAiMessage?: (message: string) => void
+  onAiThinkingChange?: (thinking: boolean, message?: string) => void
+  onChatMessages?: (messages: readonly ChatMessage[]) => void
+  onRegisterAddChatMessage?: (fn: (msg: ChatMessage) => void) => void
+  onRegisterGetCanvas?: (fn: () => { nodes: unknown[]; edges: unknown[] }) => void
 }
 
 class LiveblocksErrorBoundary extends Component<
@@ -39,6 +45,11 @@ export function CanvasWrapper({
   templatesOpen,
   onTemplatesOpenChange,
   onSaveStatusChange,
+  onAiMessage,
+  onAiThinkingChange,
+  onChatMessages,
+  onRegisterAddChatMessage,
+  onRegisterGetCanvas,
 }: CanvasWrapperProps) {
   return (
     <LiveblocksErrorBoundary
@@ -57,6 +68,8 @@ export function CanvasWrapper({
               nodes: new LiveMap(),
               edges: new LiveMap(),
             }),
+            aiStatus: new LiveObject({ thinking: false, message: "" }),
+            chatMessages: new LiveList([]),
           })}
         >
           <ClientSideSuspense
@@ -72,6 +85,11 @@ export function CanvasWrapper({
                 templatesOpen={templatesOpen}
                 onTemplatesOpenChange={onTemplatesOpenChange}
                 onSaveStatusChange={onSaveStatusChange}
+                onAiMessage={onAiMessage}
+                onAiThinkingChange={onAiThinkingChange}
+                onChatMessages={onChatMessages}
+                onRegisterAddChatMessage={onRegisterAddChatMessage}
+                onRegisterGetCanvas={onRegisterGetCanvas}
               />
             </ReactFlowProvider>
           </ClientSideSuspense>

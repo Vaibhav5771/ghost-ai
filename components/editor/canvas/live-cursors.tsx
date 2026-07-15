@@ -14,6 +14,7 @@ interface CursorEntry {
   y: number
   displayName: string
   color: string
+  thinking: boolean
 }
 
 function CursorOverlay({ entry }: { entry: CursorEntry }) {
@@ -45,6 +46,9 @@ function CursorOverlay({ entry }: { entry: CursorEntry }) {
           position: "absolute",
           top: CURSOR_HEIGHT - 4,
           left: CURSOR_WIDTH - 2,
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 4,
           padding: "2px 6px",
           borderRadius: 4,
           backgroundColor: entry.color,
@@ -57,6 +61,19 @@ function CursorOverlay({ entry }: { entry: CursorEntry }) {
         }}
       >
         {entry.displayName}
+        {entry.thinking && (
+          <span
+            style={{
+              display: "inline-block",
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              border: "1.5px solid rgba(255,255,255,0.45)",
+              borderTopColor: "white",
+              animation: "spin 0.8s linear infinite",
+            }}
+          />
+        )}
       </span>
     </div>
   )
@@ -88,6 +105,7 @@ export function LiveCursors() {
       y: cursor.y * zoom + ty,
       displayName: info.displayName,
       color: info.cursorColor,
+      thinking: other.presence?.thinking ?? false,
     })
   }
 

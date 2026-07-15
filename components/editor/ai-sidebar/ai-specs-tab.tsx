@@ -1,60 +1,248 @@
 "use client"
 
-import { Download, FileText, Sparkles } from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
+import { Download, FileText, Loader2, Sparkles, X } from "lucide-react"
+import ReactMarkdown from "react-markdown"
 
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
-export function AiSpecsTab() {
+interface SpecItem {
+  id: string
+  createdAt: string
+  filename: string
+}
+
+interface AiSpecsTabProps {
+  projectId: string
+  onGenerateSpec?: () => Promise<void>
+  isGeneratingSpec?: boolean
+  specRefreshKey?: number
+}
+
+export function AiSpecsTab({ projectId, onGenerateSpec, isGeneratingSpec = false, specRefreshKey = 0 }: AiSpecsTabProps) {
+  const [specs, setSpecs] = useState<SpecItem[]>([])
+  const [loading, setLoading] = useState(false)
+  const [selectedSpec, setSelectedSpec] = useState<SpecItem | null>(null)
+  const [previewContent, setPreviewContent] = useState<string | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    fetch(`/api/projects/${projectId}/specs`)
+      .then((r) => r.json())
+      .then((data: { specs?: SpecItem[] }) => setSpecs(data.specs ?? []))
+      .catch(() => setSpecs([]))
+      .finally(() => setLoading(false))
+  }, [projectId, specRefreshKey])
+
+  const openPreview = useCallback(
+    async (spec: SpecItem) => {
+      setSelectedSpec(spec)
+      setPreviewContent(null)
+      setPreviewLoading(true)
+      try {
+        const res = await fetch(
+          `/api/projects/${projectId}/specs/${spec.id}/download`,
+        )
+        if (res.ok) setPreviewContent(await res.text())
+      } catch {
+        // previewContent stays null — error state shown in modal
+      } finally {
+        setPreviewLoading(false)
+      }
+    },
+    [projectId],
+  )
+
+  const handleDownload = useCallback(
+    (spec: SpecItem) => {
+      const a = document.createElement("a")
+      a.href = `/api/projects/${projectId}/specs/${spec.id}/download`
+      a.download = spec.filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    },
+    [projectId],
+  )
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <div className="shrink-0 border-b border-border px-4 py-3">
         <Button
           type="button"
           className="w-full gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
+          disabled={isGeneratingSpec}
+          onClick={onGenerateSpec}
         >
-          <Sparkles className="h-4 w-4" />
-          Generate Spec
+          {isGeneratingSpec ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Sparkles className="h-4 w-4" />
+          )}
+          {isGeneratingSpec ? "Generating…" : "Generate Spec"}
         </Button>
       </div>
 
-      <ScrollArea className="flex-1 min-h-0">
-        <div className="flex flex-col gap-3 px-4 py-4">
-          <DemoSpecCard />
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="flex flex-col gap-2 px-4 py-4">
+          {loading && (
+            <div className="flex items-center justify-center py-8 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+            </div>
+          )}
+
+          {!loading && specs.length === 0 && (
+            <p className="py-8 text-center text-xs text-muted-foreground">
+              No specs yet. Generate one from the AI Architect tab.
+            </p>
+          )}
+
+          {specs.map((spec) => (
+            <SpecCard
+              key={spec.id}
+              spec={spec}
+              onOpen={openPreview}
+              onDownload={handleDownload}
+            />
+          ))}
         </div>
       </ScrollArea>
+
+      <SpecPreviewModal
+        spec={selectedSpec}
+        content={previewContent}
+        loading={previewLoading}
+        onClose={() => setSelectedSpec(null)}
+        onDownload={handleDownload}
+      />
     </div>
   )
 }
 
-function DemoSpecCard() {
+function SpecCard({
+  spec,
+  onOpen,
+  onDownload,
+}: {
+  spec: SpecItem
+  onOpen: (spec: SpecItem) => void
+  onDownload: (spec: SpecItem) => void
+}) {
+  const date = new Date(spec.createdAt).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+
   return (
-    <article className="flex gap-3 rounded-xl border border-border bg-card p-3">
+    <button
+      type="button"
+      onClick={() => onOpen(spec)}
+      className="group flex w-full gap-3 rounded-xl border border-border bg-card p-3 text-left transition-colors hover:border-primary/30 hover:bg-card/80"
+    >
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
         <FileText className="h-4 w-4" />
       </div>
 
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <div className="flex items-start justify-between gap-2">
-          <p className="truncate text-sm font-medium text-foreground">
-            E-commerce Backend Spec
-          </p>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            disabled
-            aria-label="Download spec"
-            className="h-7 w-7 shrink-0 text-muted-foreground"
-          >
-            <Download className="h-4 w-4" />
-          </Button>
-        </div>
-        <p className="line-clamp-2 text-xs text-muted-foreground">
-          Storefront, checkout, inventory, and payment services with a shared
-          Postgres primary and a Redis session cache.
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <p className="truncate text-sm font-medium text-foreground">
+          {spec.filename}
         </p>
+        <p className="text-xs text-muted-foreground">{date}</p>
       </div>
-    </article>
+
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-label="Download spec"
+        className="h-7 w-7 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+        onClick={(e) => {
+          e.stopPropagation()
+          onDownload(spec)
+        }}
+      >
+        <Download className="h-4 w-4" />
+      </Button>
+    </button>
+  )
+}
+
+function SpecPreviewModal({
+  spec,
+  content,
+  loading,
+  onClose,
+  onDownload,
+}: {
+  spec: SpecItem | null
+  content: string | null
+  loading: boolean
+  onClose: () => void
+  onDownload: (spec: SpecItem) => void
+}) {
+  return (
+    <Dialog open={!!spec} onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent className="flex max-h-[80vh] max-w-2xl flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="flex flex-row items-center gap-3 border-b border-border px-5 py-3">
+          <DialogTitle className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
+            {spec?.filename ?? ""}
+          </DialogTitle>
+          <div className="flex shrink-0 items-center gap-1">
+            {spec && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => onDownload(spec)}
+              >
+                <Download className="h-3.5 w-3.5" />
+                Download
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              onClick={onClose}
+              aria-label="Close preview"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </DialogHeader>
+
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="px-6 py-5">
+            {loading && (
+              <div className="flex items-center justify-center py-16 text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin" />
+              </div>
+            )}
+            {!loading && !content && (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                Could not load spec content.
+              </p>
+            )}
+            {!loading && content && (
+              <div className="spec-markdown">
+                <ReactMarkdown>{content}</ReactMarkdown>
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
   )
 }

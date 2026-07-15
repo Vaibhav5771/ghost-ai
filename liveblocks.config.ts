@@ -1,5 +1,7 @@
 import type { LiveblocksFlow } from "@liveblocks/react-flow";
-import type { CanvasNode, CanvasEdge } from "@/types/canvas";
+import type { LiveList, LiveObject } from "@liveblocks/client";
+import type { CanvasNode, CanvasEdge, CanvasAction } from "@/types/canvas";
+import type { ChatMessage } from "@/types/tasks";
 
 declare global {
   interface Liveblocks {
@@ -10,6 +12,8 @@ declare global {
 
     Storage: {
       flow: LiveblocksFlow<CanvasNode, CanvasEdge>;
+      aiStatus: LiveObject<{ thinking: boolean; message: string }>;
+      chatMessages: LiveList<ChatMessage>;
     };
 
     UserMeta: {
@@ -21,7 +25,9 @@ declare global {
       };
     };
 
-    RoomEvent: {};
+    RoomEvent:
+      | { type: "ai:status"; message: string; thinking: boolean }
+      | { type: "ai:action"; action: CanvasAction };
 
     ThreadMetadata: {};
 

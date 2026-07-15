@@ -1,7 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
+import { useUser } from "@clerk/nextjs"
+import { useRealtimeRun } from "@trigger.dev/react-hooks"
 import {
   AlertCircle,
   Check,
@@ -22,6 +24,7 @@ import { CanvasWrapper } from "@/components/editor/canvas/canvas-wrapper"
 import { useProjectActions } from "@/hooks/use-project-actions"
 import type { CanvasSaveStatus } from "@/hooks/use-canvas-autosave"
 import type { EditorProject, EditorProjectLists } from "@/lib/project-types"
+import type { ChatMessage } from "@/types/tasks"
 
 interface WorkspaceShellProps extends EditorProjectLists {
   activeProject: EditorProject
@@ -33,11 +36,71 @@ export function WorkspaceShell({
   sharedProjects,
 }: WorkspaceShellProps) {
   const router = useRouter()
+  const { user } = useUser()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isAiPanelOpen, setIsAiPanelOpen] = useState(false)
   const [isShareOpen, setIsShareOpen] = useState(false)
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false)
   const [saveStatus, setSaveStatus] = useState<CanvasSaveStatus>("idle")
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const addChatMessageRef = useRef<((msg: ChatMessage) => void) | null>(null)
+  const [aiThinking, setAiThinking] = useState(false)
+  const [aiStatusMessage, setAiStatusMessage] = useState<string | undefined>()
+  const [activeRun, setActiveRun] = useState<{ runId: string; publicToken: string } | null>(null)
+  const [specRun, setSpecRun] = useState<{ runId: string; publicToken: string } | null>(null)
+  const [specRefreshKey, setSpecRefreshKey] = useState(0)
+  const getCanvasRef = useRef<(() => { nodes: unknown[]; edges: unknown[] }) | null>(null)
+
+  const { run } = useRealtimeRun(activeRun?.runId ?? "", {
+    accessToken: activeRun?.publicToken ?? "",
+    enabled: !!activeRun,
+    skipColumns: ["payload", "output"],
+  })
+
+  const { run: specRunRealtime } = useRealtimeRun(specRun?.runId ?? "", {
+    accessToken: specRun?.publicToken ?? "",
+    enabled: !!specRun,
+    skipColumns: ["payload", "output"],
+  })
+
+  const TERMINAL_STATUSES = [
+    "COMPLETED",
+    "FAILED",
+    "CANCELED",
+    "CRASHED",
+    "SYSTEM_FAILURE",
+    "EXPIRED",
+    "TIMED_OUT",
+  ]
+
+  const runStatus = run?.status
+  useEffect(() => {
+    if (!activeRun || !runStatus) return
+    if (!TERMINAL_STATUSES.includes(runStatus)) return
+
+    const succeeded = runStatus === "COMPLETED"
+    const msg: ChatMessage = {
+      id: `ai-${Date.now()}-${Math.random()}`,
+      sender: "Ghost AI",
+      role: "assistant",
+      content: succeeded
+        ? "Design complete. Your canvas has been updated."
+        : "The design task failed. Please try again.",
+      timestamp: Date.now(),
+    }
+    addChatMessageRef.current?.(msg)
+    setActiveRun(null)
+    setAiThinking(false)
+    setAiStatusMessage(undefined)
+  }, [runStatus, activeRun]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const specRunStatus = specRunRealtime?.status
+  useEffect(() => {
+    if (!specRun || !specRunStatus) return
+    if (!TERMINAL_STATUSES.includes(specRunStatus)) return
+    setSpecRun(null)
+    if (specRunStatus === "COMPLETED") setSpecRefreshKey((k) => k + 1)
+  }, [specRunStatus, specRun]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fade a fresh "Saved" back to "idle" after a beat so the pill doesn't sit
   // permanently in the success state — matches the ergonomic feel of Notion /
@@ -51,6 +114,109 @@ export function WorkspaceShell({
   const projectActions = useProjectActions({
     activeProjectId: activeProject.id,
   })
+
+  const handleChatMessages = useCallback((messages: readonly ChatMessage[]) => {
+    setChatMessages([...messages])
+  }, [])
+
+  const handleRegisterAddChatMessage = useCallback((fn: (msg: ChatMessage) => void) => {
+    addChatMessageRef.current = fn
+  }, [])
+
+  const handleRegisterGetCanvas = useCallback(
+    (fn: () => { nodes: unknown[]; edges: unknown[] }) => {
+      getCanvasRef.current = fn
+    },
+    [],
+  )
+
+  const handleGenerateSpec = useCallback(async () => {
+    const projectId = activeProject.id
+    const canvas = getCanvasRef.current?.()
+    try {
+      const specRes = await fetch("/api/ai/spec", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          roomId: projectId,
+          chatHistory: chatMessages.map((m) => ({ role: m.role, content: m.content })),
+          nodes: canvas?.nodes ?? [],
+          edges: canvas?.edges ?? [],
+        }),
+      })
+      if (!specRes.ok) throw new Error("Spec API error")
+      const { runId } = (await specRes.json()) as { runId: string }
+
+      const tokenRes = await fetch("/api/ai/spec/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ runId }),
+      })
+      if (!tokenRes.ok) throw new Error("Token API error")
+      const { token: publicToken } = (await tokenRes.json()) as { token: string }
+
+      setSpecRun({ runId, publicToken })
+    } catch {
+      // surface nothing — button re-enables, user can retry
+    }
+  }, [activeProject.id, chatMessages])
+
+  const handleAiSend = useCallback(async (prompt: string) => {
+    const projectId = activeProject.id
+    const sender = user?.fullName ?? user?.emailAddresses?.[0]?.emailAddress ?? "User"
+    const userMsg: ChatMessage = {
+      id: `user-${Date.now()}`,
+      sender,
+      role: "user",
+      content: prompt,
+      timestamp: Date.now(),
+    }
+    addChatMessageRef.current?.(userMsg)
+    try {
+      const designRes = await fetch("/api/ai/design", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, roomId: projectId, projectId }),
+      })
+      if (!designRes.ok) throw new Error("Design API returned an error")
+      const { runId } = await designRes.json() as { runId: string }
+
+      const tokenRes = await fetch("/api/ai/design/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ runId }),
+      })
+      if (!tokenRes.ok) throw new Error("Token API returned an error")
+      const { token: publicToken } = await tokenRes.json() as { token: string }
+
+      setActiveRun({ runId, publicToken })
+    } catch {
+      const errMsg: ChatMessage = {
+        id: `err-${Date.now()}`,
+        sender: "Ghost AI",
+        role: "assistant",
+        content: "Failed to start the design task. Please try again.",
+        timestamp: Date.now(),
+      }
+      addChatMessageRef.current?.(errMsg)
+    }
+  }, [activeProject.id, user])
+
+  const handleAiMessage = useCallback((message: string) => {
+    const aiMsg: ChatMessage = {
+      id: `ai-${Date.now()}-${Math.random()}`,
+      sender: "Ghost AI",
+      role: "assistant",
+      content: message,
+      timestamp: Date.now(),
+    }
+    addChatMessageRef.current?.(aiMsg)
+  }, [])
+
+  const handleAiThinkingChange = useCallback((thinking: boolean, message?: string) => {
+    setAiThinking(thinking)
+    setAiStatusMessage(thinking ? message : undefined)
+  }, [])
 
   function openProject(projectId: string) {
     setIsSidebarOpen(false)
@@ -142,6 +308,11 @@ export function WorkspaceShell({
             templatesOpen={isTemplatesOpen}
             onTemplatesOpenChange={setIsTemplatesOpen}
             onSaveStatusChange={setSaveStatus}
+            onAiMessage={handleAiMessage}
+            onAiThinkingChange={handleAiThinkingChange}
+            onChatMessages={handleChatMessages}
+            onRegisterAddChatMessage={handleRegisterAddChatMessage}
+            onRegisterGetCanvas={handleRegisterGetCanvas}
           />
         </main>
 
@@ -150,6 +321,14 @@ export function WorkspaceShell({
       <AiSidebar
         isOpen={isAiPanelOpen}
         onClose={() => setIsAiPanelOpen(false)}
+        projectId={activeProject.id}
+        messages={chatMessages}
+        onSend={handleAiSend}
+        isThinking={aiThinking || !!activeRun}
+        statusMessage={aiStatusMessage}
+        onGenerateSpec={handleGenerateSpec}
+        isGeneratingSpec={!!specRun}
+        specRefreshKey={specRefreshKey}
       />
 
       <ProjectDialogs

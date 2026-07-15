@@ -48,3 +48,12 @@ export const NODE_COLOR_PALETTE: readonly NodeColorPair[] = [
   { id: "violet",  name: "Violet",  background: "oklch(0.42 0.17 300)", text: "oklch(0.94 0.07 300)" },
   { id: "cyan",    name: "Cyan",    background: "oklch(0.68 0.11 210)", text: "oklch(0.26 0.08 210)" },
 ] as const
+
+export type CanvasAction =
+  | { type: "addNode"; id: string; label: string; shape: CanvasShape; color?: string; textColor?: string; x: number; y: number; width: number; height: number }
+  | { type: "moveNode"; id: string; x: number; y: number }
+  | { type: "resizeNode"; id: string; width: number; height: number }
+  | { type: "updateNodeData"; id: string; label?: string; color?: string; textColor?: string }
+  | { type: "deleteNode"; id: string }
+  | { type: "addEdge"; id: string; source: string; target: string; label?: string }
+  | { type: "deleteEdge"; id: string }
