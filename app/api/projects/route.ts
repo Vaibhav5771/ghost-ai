@@ -3,7 +3,6 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 
 const DEFAULT_PROJECT_NAME = "Untitled Project";
-const INITIAL_CANVAS_JSON_PATH = "";
 
 const projectSelect = {
   id: true,
@@ -11,7 +10,7 @@ const projectSelect = {
   name: true,
   description: true,
   status: true,
-  canvasJsonPath: true,
+  canvasBlobUrl: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -80,7 +79,6 @@ export async function POST(request: Request) {
       ...(id ? { id } : {}),
       ownerId: userId,
       name,
-      canvasJsonPath: INITIAL_CANVAS_JSON_PATH,
     },
     select: projectSelect,
   });

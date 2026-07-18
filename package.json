@@ -7,9 +7,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "lint:fix": "eslint --fix"
+    "lint:fix": "eslint --fix",
+    "trigger:dev": "trigger dev",
+    "trigger:deploy": "trigger deploy"
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.91",
+    "@ai-sdk/groq": "^3.0.51",
     "@clerk/nextjs": "^7.3.0",
     "@clerk/ui": "^1.7.0",
     "@liveblocks/client": "^3.19.1",
@@ -24,7 +28,11 @@
     "@radix-ui/react-scroll-area": "^1.2.10",
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-tabs": "^1.1.13",
+    "@trigger.dev/react-hooks": "4.5.4",
+    "@trigger.dev/sdk": "4.5.4",
+    "@vercel/blob": "^2.6.1",
     "@xyflow/react": "^12.10.2",
+    "ai": "^6.0.225",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dotenv": "^17.4.2",
@@ -33,7 +41,9 @@
     "pg": "^8.20.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "tailwind-merge": "^2.6.0"
+    "react-markdown": "^10.1.0",
+    "tailwind-merge": "^2.6.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -45,10 +55,14 @@
     "eslint-config-next": "16.2.4",
     "prisma": "^7.8.0",
     "tailwindcss": "^4",
+    "trigger.dev": "^4.5.4",
     "tsx": "^4.21.0",
     "typescript": "^5"
   },
   "optionalDependencies": {
     "lightningcss-win32-x64-msvc": "^1.32.0"
+  },
+  "overrides": {
+    "esbuild": "^0.25.0"
   }
 }
