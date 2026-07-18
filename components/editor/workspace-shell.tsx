@@ -99,7 +99,17 @@ export function WorkspaceShell({
     if (!specRun || !specRunStatus) return
     if (!TERMINAL_STATUSES.includes(specRunStatus)) return
     setSpecRun(null)
-    if (specRunStatus === "COMPLETED") setSpecRefreshKey((k) => k + 1)
+    if (specRunStatus === "COMPLETED") {
+      setSpecRefreshKey((k) => k + 1)
+    } else {
+      addChatMessageRef.current?.({
+        id: `err-${Date.now()}`,
+        sender: "Ghost AI",
+        role: "assistant",
+        content: `Spec generation ${specRunStatus.toLowerCase()}. Check the Trigger.dev dashboard for details.`,
+        timestamp: Date.now(),
+      })
+    }
   }, [specRunStatus, specRun]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fade a fresh "Saved" back to "idle" after a beat so the pill doesn't sit
@@ -144,20 +154,22 @@ export function WorkspaceShell({
           edges: canvas?.edges ?? [],
         }),
       })
-      if (!specRes.ok) throw new Error("Spec API error")
-      const { runId } = (await specRes.json()) as { runId: string }
-
-      const tokenRes = await fetch("/api/ai/spec/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ runId }),
-      })
-      if (!tokenRes.ok) throw new Error("Token API error")
-      const { token: publicToken } = (await tokenRes.json()) as { token: string }
+      if (!specRes.ok) {
+        const detail = await specRes.text().catch(() => "")
+        throw new Error(`Spec API ${specRes.status}: ${detail || "no body"}`)
+      }
+      const { runId, publicToken } = (await specRes.json()) as { runId: string; publicToken: string }
 
       setSpecRun({ runId, publicToken })
-    } catch {
-      // surface nothing — button re-enables, user can retry
+    } catch (err) {
+      console.error("Spec generation failed:", err)
+      addChatMessageRef.current?.({
+        id: `err-${Date.now()}`,
+        sender: "Ghost AI",
+        role: "assistant",
+        content: "Failed to start spec generation. Check that the Trigger.dev dev server is running and try again.",
+        timestamp: Date.now(),
+      })
     }
   }, [activeProject.id, chatMessages])
 

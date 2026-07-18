@@ -1,12 +1,13 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Download, FileText, Loader2, Sparkles, X } from "lucide-react"
+import { Download, FileText, Loader2, Sparkles, Trash2, X } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -26,12 +27,20 @@ interface AiSpecsTabProps {
   specRefreshKey?: number
 }
 
+async function deleteSpec(projectId: string, specId: string): Promise<void> {
+  const res = await fetch(`/api/projects/${projectId}/specs/${specId}`, {
+    method: "DELETE",
+  })
+  if (!res.ok) throw new Error(`Delete failed: ${res.status}`)
+}
+
 export function AiSpecsTab({ projectId, onGenerateSpec, isGeneratingSpec = false, specRefreshKey = 0 }: AiSpecsTabProps) {
   const [specs, setSpecs] = useState<SpecItem[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedSpec, setSelectedSpec] = useState<SpecItem | null>(null)
   const [previewContent, setPreviewContent] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   useEffect(() => {
     setLoading(true)
@@ -73,6 +82,22 @@ export function AiSpecsTab({ projectId, onGenerateSpec, isGeneratingSpec = false
     [projectId],
   )
 
+  const handleDelete = useCallback(
+    async (spec: SpecItem) => {
+      setDeletingId(spec.id)
+      try {
+        await deleteSpec(projectId, spec.id)
+        setSpecs((prev) => prev.filter((s) => s.id !== spec.id))
+        if (selectedSpec?.id === spec.id) setSelectedSpec(null)
+      } catch {
+        // silently ignore — spec stays in list
+      } finally {
+        setDeletingId(null)
+      }
+    },
+    [projectId, selectedSpec],
+  )
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <div className="shrink-0 border-b border-border px-4 py-3">
@@ -111,6 +136,8 @@ export function AiSpecsTab({ projectId, onGenerateSpec, isGeneratingSpec = false
               spec={spec}
               onOpen={openPreview}
               onDownload={handleDownload}
+              onDelete={handleDelete}
+              isDeleting={deletingId === spec.id}
             />
           ))}
         </div>
@@ -131,10 +158,14 @@ function SpecCard({
   spec,
   onOpen,
   onDownload,
+  onDelete,
+  isDeleting,
 }: {
   spec: SpecItem
   onOpen: (spec: SpecItem) => void
   onDownload: (spec: SpecItem) => void
+  onDelete: (spec: SpecItem) => void
+  isDeleting: boolean
 }) {
   const date = new Date(spec.createdAt).toLocaleString(undefined, {
     month: "short",
@@ -147,10 +178,15 @@ function SpecCard({
     <button
       type="button"
       onClick={() => onOpen(spec)}
-      className="group flex w-full gap-3 rounded-xl border border-border bg-card p-3 text-left transition-colors hover:border-primary/30 hover:bg-card/80"
+      disabled={isDeleting}
+      className="group flex w-full gap-3 rounded-xl border border-border bg-card p-3 text-left transition-colors hover:border-primary/30 hover:bg-card/80 disabled:opacity-50"
     >
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
-        <FileText className="h-4 w-4" />
+        {isDeleting ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <FileText className="h-4 w-4" />
+        )}
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -160,19 +196,34 @@ function SpecCard({
         <p className="text-xs text-muted-foreground">{date}</p>
       </div>
 
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        aria-label="Download spec"
-        className="h-7 w-7 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
-        onClick={(e) => {
-          e.stopPropagation()
-          onDownload(spec)
-        }}
-      >
-        <Download className="h-4 w-4" />
-      </Button>
+      <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label="Download spec"
+          className="h-7 w-7 text-muted-foreground"
+          onClick={(e) => {
+            e.stopPropagation()
+            onDownload(spec)
+          }}
+        >
+          <Download className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label="Delete spec"
+          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+          onClick={(e) => {
+            e.stopPropagation()
+            onDelete(spec)
+          }}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
     </button>
   )
 }
@@ -192,35 +243,34 @@ function SpecPreviewModal({
 }) {
   return (
     <Dialog open={!!spec} onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="flex max-h-[80vh] max-w-2xl flex-col gap-0 overflow-hidden p-0">
-        <DialogHeader className="flex flex-row items-center gap-3 border-b border-border px-5 py-3">
+      <DialogContent className="flex h-[80vh] max-w-2xl flex-col gap-0 overflow-hidden p-0 [&>button:last-child]:hidden">
+        <DialogHeader className="flex shrink-0 flex-row items-center gap-2 border-b border-border px-5 py-3">
           <DialogTitle className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
             {spec?.filename ?? ""}
           </DialogTitle>
-          <div className="flex shrink-0 items-center gap-1">
-            {spec && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-                onClick={() => onDownload(spec)}
-              >
-                <Download className="h-3.5 w-3.5" />
-                Download
-              </Button>
-            )}
+          {spec && (
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-foreground"
-              onClick={onClose}
+              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+              aria-label="Download spec"
+              onClick={() => onDownload(spec)}
+            >
+              <Download className="h-4 w-4" />
+            </Button>
+          )}
+          <DialogClose asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
               aria-label="Close preview"
             >
               <X className="h-4 w-4" />
             </Button>
-          </div>
+          </DialogClose>
         </DialogHeader>
 
         <ScrollArea className="min-h-0 flex-1">

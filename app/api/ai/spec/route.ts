@@ -1,4 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
+import { auth as triggerAuth } from "@trigger.dev/sdk/v3";
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentIdentity, getProjectForUser } from "@/lib/project-access";
@@ -43,6 +44,7 @@ export async function POST(request: Request) {
 
   const handle = await generateSpecTask.trigger({
     projectId: project.id,
+    projectName: project.name,
     roomId: roomId.trim(),
     chatHistory: Array.isArray(chatHistory) ? chatHistory : [],
     nodes: Array.isArray(nodes) ? nodes : [],
@@ -57,5 +59,10 @@ export async function POST(request: Request) {
     },
   });
 
-  return Response.json({ runId: handle.id }, { status: 201 });
+  const publicToken = await triggerAuth.createPublicToken({
+    scopes: { read: { runs: [handle.id] } },
+    expirationTime: "1h",
+  });
+
+  return Response.json({ runId: handle.id, publicToken }, { status: 201 });
 }

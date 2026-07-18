@@ -62,12 +62,13 @@ export const generateSpecTask = schemaTask({
   retry: { maxAttempts: 2 },
   schema: z.object({
     projectId: z.string().min(1),
+    projectName: z.string().default("project"),
     roomId: z.string().min(1),
     chatHistory: z.array(chatMessageSchema).default([]),
     nodes: z.array(canvasNodeSchema).default([]),
     edges: z.array(canvasEdgeSchema).default([]),
   }),
-  run: async ({ projectId, chatHistory, nodes, edges }) => {
+  run: async ({ projectId, projectName, chatHistory, nodes, edges }) => {
     logger.log("generate-spec started", {
       projectId,
       nodeCount: nodes.length,
@@ -123,36 +124,53 @@ export const generateSpecTask = schemaTask({
 
     metadata.set("status", "generating");
 
-    const groq = createGroq({
-      apiKey: process.env.GROQ_API_KEY,
-    });
+    try {
+      const groq = createGroq({
+        apiKey: process.env.GROQ_API_KEY,
+      });
 
-    const { text } = await generateText({
-      model: groq("meta-llama/llama-4-scout-17b-16e-instruct"),
-      system: SYSTEM_PROMPT,
-      prompt: userPrompt,
-    });
+      logger.log("generate-spec:groq-start");
+      const { text } = await generateText({
+        model: groq("llama-3.3-70b-versatile"),
+        system: SYSTEM_PROMPT,
+        prompt: userPrompt,
+      });
 
-    logger.log("generate-spec completed", { specLength: text.length });
-    metadata.set("status", "complete");
+      logger.log("generate-spec:groq-done", { specLength: text.length });
+      metadata.set("status", "uploading");
 
-    const blob = await put(
-      `projects/${projectId}/specs/${Date.now()}.md`,
-      text,
-      {
-        access: "private",
-        addRandomSuffix: false,
-        allowOverwrite: false,
-        contentType: "text/markdown; charset=utf-8",
-      },
-    );
+      logger.log("generate-spec:blob-start");
+      const slug = projectName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "") || "project";
+      const blob = await put(
+        `projects/${projectId}/specs/${Date.now()}/${slug}-spec.md`,
+        text,
+        {
+          access: "private",
+          addRandomSuffix: false,
+          allowOverwrite: false,
+          contentType: "text/markdown; charset=utf-8",
+        },
+      );
+      logger.log("generate-spec:blob-done", { url: blob.url });
 
-    const specRecord = await prisma.projectSpec.create({
-      data: { projectId, filePath: blob.url },
-    });
+      logger.log("generate-spec:db-start");
+      const specRecord = await prisma.projectSpec.create({
+        data: { projectId, filePath: blob.url },
+      });
 
-    logger.log("generate-spec persisted", { specId: specRecord.id, blobUrl: blob.url });
+      logger.log("generate-spec:persisted", { specId: specRecord.id, blobUrl: blob.url });
+      metadata.set("status", "complete");
 
-    return { spec: text, specId: specRecord.id };
+      return { spec: text, specId: specRecord.id };
+    } catch (err) {
+      logger.error("generate-spec failed", {
+        message: (err as Error).message,
+        stack: (err as Error).stack,
+      });
+      throw err;
+    }
   },
 });
